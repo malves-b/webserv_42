@@ -1,7 +1,9 @@
 #include <sstream>
+#include <sstream>
 #include <response/ResponseBuilder.hpp>
 #include <utils/Logger.hpp>
 #include <utils/string_utils.hpp>
+#include <init/ServerConfig.hpp>
 
 const std::string	ResponseBuilder::fmtTimestamp(void)
 {
@@ -47,8 +49,6 @@ const std::string	ResponseBuilder::responseWriter(HttpResponse& response)
 	oss << "HTTP/" << response.getHttpVersion() << " "
 		<< response.getStatusCode() << " "
 		<< response.getReasonPhrase() << "\r\n";
-
-	//TODO connection
 
 	//headers
 	const std::map<std::string, std::string>& headers = response.getHeaders();
@@ -133,22 +133,32 @@ void	ResponseBuilder::build(HttpRequest& req, HttpResponse& res)
 	if (res.getStatusCode() >= 400)
 	{
 		res.addHeader("connection", "close");
-		std::string content;
-		//if (false) //find error in config
-		//{
-			;
-			//const std::string& path = "path"; //config
-
-			// if readfile(path, content)
-			// {
-			// 	staticPage(response, content, mimeType(path));
-			// }
-		//}
-		//else
-		//{
-		content = errorPageGenerator(res.getStatusCode());
-		handleStaticPageOutput(res, content, "text/html");
-		//}
+		if (!errorPageConfig(res))
+		{
+			std::string content = errorPageGenerator(res.getStatusCode());
+			handleStaticPageOutput(res, content, "text/html");
+		}
 	}
 	Logger::instance().log(DEBUG, "[Finished] ResponseBuilder::build");
+}
+
+bool	ResponseBuilder::errorPageConfig(HttpResponse& res)
+{
+	int statusCode = static_cast<int>(res.getStatusCode());
+	const std::string path = ServerConfig::instance().errorPage(statusCode);
+	if (path != "")
+	{
+		std::ifstream file(path.c_str(), std::ios::binary);
+
+		if (!file)
+		{
+			res.setStatusCode(ResponseStatus::InternalServerError);
+			return (false);
+		}
+		std::ostringstream buffer;
+		buffer << file.rdbuf();
+		handleStaticPageOutput(res,	buffer.str(), "text/html");
+		return (true);
+	}
+	return (false);
 }
