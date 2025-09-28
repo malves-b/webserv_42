@@ -4,7 +4,7 @@ RequestMeta::RequestMeta() {}
 
 RequestMeta::~RequestMeta() {}
 
-void	RequestMeta::setContentLength(int content_length)
+void	RequestMeta::setContentLength(std::size_t content_length)
 {
 	this->_contentLength = content_length;
 }
@@ -31,14 +31,14 @@ void	RequestMeta::setHost(const std::string& host)
 
 void	RequestMeta::resetMeta(void)
 {
-	this->_contentLength = -1;
+	this->_contentLength = 0;
 	this->_chunked = false;
 	this->_connectionClose = false;
 	this->_expectContinue = true;
 	this->_host.clear();
 }
 
-int	RequestMeta::getContentLength(void) const { return (this->_contentLength); }
+std::size_t	RequestMeta::getContentLength(void) const { return (this->_contentLength); }
 
 bool	RequestMeta::isChunked(void) const { return (this->_chunked); }
 
