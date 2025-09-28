@@ -7,7 +7,9 @@ ServerConfig::ServerConfig() : root("/home/jose/webserv_42/webservinho_app"),
 	client_max_body_size(1048576),
 	autoindex(true),
 	upload_path("/home/jose/webserv_42/webservinho_app/uploads")
-{}
+{
+	this->allow_methods.push_back(RequestMethod::GET);
+}
 
 ServerConfig::~ServerConfig() {}
 

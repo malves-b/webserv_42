@@ -65,8 +65,8 @@ void	WebServer::receiveRequest(size_t i)
 				// 	"\r\n"
 				// 	"Hello World!"; //debug
 				//client.setResponseBuffer(response);
+				//client.clearBuffer(); //rename
 				Dispatcher::dispatch(client); //real oficial
-				client.clearBuffer(); //rename
 				this->_pollFDs[i].events = POLLOUT; //After receiving a full request, switch events to POLLOUT
 				client.setSentBytes(0);
 			}
@@ -95,7 +95,7 @@ void	WebServer::sendResponse(size_t i)
 	Logger::instance().log(DEBUG, "[Started] WebServer::sendResponse");
 	std::map<int, ClientConnection>::iterator	it;
 	it = this->_clients.find(this->_pollFDs[i].fd);
-	std::cout << "Response: fd: " << this->_pollFDs[i].fd << std::endl; //debug
+	Logger::instance().log(DEBUG, "WebServer::sendResponse FD -> " + toString(this->_pollFDs[i].fd));
 	if (it != this->_clients.end()) //should I treat it in case of false?
 	{
 		ClientConnection	&client = it->second;
@@ -104,11 +104,15 @@ void	WebServer::sendResponse(size_t i)
 			size_t				totalLen = client.getResponseBuffer().length();
 			size_t				sent = client.getSentBytes();
 			size_t				toSend = (totalLen > sent) ? (totalLen - sent) : 0;
-
+			Logger::instance().log(DEBUG, "WebServer::sendResponse totalLen -> "
+				+ toString(totalLen)
+				+ " sent -> " + toString(sent)
+				+ " toSend -> " + toString(toSend));
 			if (!toSend)
 			{
 				this->_pollFDs[i].events = POLLIN;
 				//set revents to 0 too?
+				Logger::instance().log(DEBUG, "WebServer::sendResponse !toSend");
 				return ; //not sure?
 			}
 			ssize_t	bytesSent = client.sendData(client, sent, toSend);
@@ -124,11 +128,15 @@ void	WebServer::sendResponse(size_t i)
 				}
 			}
 			else if (bytesSent == -1)
+			{
+				Logger::instance().log(DEBUG, "WebServer::sendResponse bytesSent == -1");
 				return ;
+			}
 		}
 		catch (std::exception const& e)
 		{
-			std::cerr << "error:" << e.what() << '\n';
+			std::string _error(e.what());
+			Logger::instance().log(ERROR, "WebServer::sendResponse | " + _error);
 			this->removeClientConnection(client.getFD(), i);
 		}
 	}

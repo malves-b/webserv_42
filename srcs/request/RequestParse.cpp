@@ -1,8 +1,9 @@
 #include <iostream>
 #include <exception>
 #include <cstdlib>
+#include <vector>
 #include <request/RequestParse.hpp>
-#include <request/RequestState.hpp>
+#include <request/RequestMethod.hpp>
 #include <utils/string_utils.hpp>
 #include <utils/Logger.hpp>
 #include <response/ResponseStatus.hpp>
@@ -38,6 +39,11 @@ void	RequestParse::handleRawRequest(const std::string& chunk, HttpRequest& reque
 				{
 					if (!buffer.empty())
 						requestLine(buffer, request);
+					if (request.getParseError() != ResponseStatus::OK)
+					{
+						request.setRequestState(RequestState::Complete);
+						return ;
+					}
 					request.setRequestState(RequestState::Headers);
 				}
 				else
@@ -74,7 +80,7 @@ void	RequestParse::handleRawRequest(const std::string& chunk, HttpRequest& reque
 	if (i > 0)
 		request.getRaw().erase(0, i);
 	Logger::instance().log(DEBUG,
-  		"Consumed i=" + toString(i) + " of raw=" + toString(rawRequest.size()));
+		"Consumed i=" + toString(i) + " of raw=" + toString(rawRequest.size()));
 }
 
 void	RequestParse::requestLine(const std::string& buffer, HttpRequest& request)
@@ -133,6 +139,7 @@ void	RequestParse::method(const std::string& method, HttpRequest& request)
 		request.setMethod(RequestMethod::INVALID);
 		request.setParseError(ResponseStatus::MethodNotAllowed);
 	}
+	checkMethod(request);
 }
 
 void	RequestParse::uri(const std::string str, HttpRequest& request)
@@ -305,4 +312,24 @@ bool	RequestParse::isGreaterThanMaxBodySize(std::size_t size)
 	if (size > ServerConfig::instance().client_max_body_size)
 		return (true);
 	return (false);
+}
+
+void	RequestParse::checkMethod(HttpRequest& request)
+{
+	if (request.getMethod() == RequestMethod::INVALID)
+		return ;
+	size_t size = ServerConfig::instance().allow_methods.size();
+	RequestMethod::Method m = request.getMethod();
+	for (size_t i = 0; i < size; ++i)
+	{
+		Logger::instance().log(DEBUG, "RequestParse::checkMethod -> "
+				+ toString(ServerConfig::instance().allow_methods[i]));
+		if (ServerConfig::instance().allow_methods[i] != m)
+		{
+			request.setParseError(ResponseStatus::MethodNotAllowed);
+			Logger::instance().log(DEBUG, "RequestParse::checkMethod -> "
+				+ toString(ServerConfig::instance().allow_methods[i])
+				+ "!=" + toString(m));
+		}
+	}
 }

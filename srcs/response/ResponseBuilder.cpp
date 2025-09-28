@@ -41,7 +41,7 @@ const std::string	ResponseBuilder::responseWriter(HttpResponse& response)
 {
 	std::ostringstream oss;
 
-	Logger::instance().log(DEBUG, "[Started] ResponseBuilder::responseToString");
+	Logger::instance().log(DEBUG, "[Started] ResponseBuilder::responseWriter");
 
 	//response line
 	oss << "HTTP/" << response.getHttpVersion() << " "
@@ -65,7 +65,7 @@ const std::string	ResponseBuilder::responseWriter(HttpResponse& response)
 	//else
 		//TODO body chunks
 	oss << "\r\n";
-	Logger::instance().log(DEBUG, "[Finished] ResponseBuilder::responseToString");
+	Logger::instance().log(DEBUG, "[Finished] ResponseBuilder::responseWriter");
 	return (oss.str());
 }
 

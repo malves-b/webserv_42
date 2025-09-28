@@ -40,6 +40,7 @@ ssize_t	ClientConnection::recvData(void)
 			"ClientConnection::recvData appended " + toString(bytesRecv) +
 			" bytes, buffer total = " + toString(_requestBuffer.size()));
 		RequestParse::handleRawRequest(_requestBuffer, _httpRequest);
+		Logger::instance().log(DEBUG, "ClientConnection::recvData request -> " + _requestBuffer);
 		_requestBuffer.clear();
 		return (bytesRecv);
 	}
