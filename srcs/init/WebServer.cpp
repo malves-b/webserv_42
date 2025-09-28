@@ -1,6 +1,7 @@
 #include <init/WebServer.hpp>
 #include <dispatcher/Dispatcher.hpp>
 #include <utils/Logger.hpp>
+#include <utils/string_utils.hpp>
 #include <sys/socket.h> // SOMAXCONN
 #include <unistd.h> //close()
 #include <errno.h>
@@ -52,6 +53,7 @@ void	WebServer::receiveRequest(size_t i)
 		{
 			ssize_t	bytesRecv = client.recvData();
 
+			Logger::instance().log(DEBUG, "WebServer::receiveRequest -> " + client.getRequest().getBuffer());
 			if (bytesRecv > 0 && client.completedRequest()) // >= 0?
 			{
 				std::cout << client.getRequestBuffer() << std::endl; //debug
@@ -67,6 +69,15 @@ void	WebServer::receiveRequest(size_t i)
 				client.clearBuffer(); //rename
 				this->_pollFDs[i].events = POLLOUT; //After receiving a full request, switch events to POLLOUT
 				client.setSentBytes(0);
+			}
+			else if (client.getRequest().getMeta().getExpectContinue())
+			{
+				Logger::instance().log(DEBUG, "WebServer::receiveRequest Expect True send");
+				//client.clearBuffer(); //rename
+				client.setResponseBuffer("HTTP/1.1 100 Continue\r\n\r\n");
+				this->_pollFDs[i].events = POLLOUT; //After receiving a full request, switch events to POLLOUT
+				client.setSentBytes(0);
+				client.getRequest().getMeta().setExpectContinue(false);
 			}
 			else if (bytesRecv == 0)
 				this->removeClientConnection(client.getFD(), i);
@@ -109,6 +120,7 @@ void	WebServer::sendResponse(size_t i)
 					client.clearBuffer(); //call _responseBuffer.clear()?
 					client.setSentBytes(0);
 					this->_pollFDs[i].events = POLLIN; //After sending full response, switch back to POLLIN
+					Logger::instance().log(DEBUG, "WebServer::sendResponse back listen");
 				}
 			}
 			else if (bytesSent == -1)

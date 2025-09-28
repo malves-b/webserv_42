@@ -13,7 +13,7 @@ void	Dispatcher::dispatch(ClientConnection& client)
 	HttpRequest& req = client.getRequest();
 	HttpResponse& res = client.getResponse();
 
-	Router::resolve(req, res); //TODO query string
+	Router::resolve(req, res);
 
 	Logger::instance().log(DEBUG,
 		"StaticPageHandler::handle Route -> " + toString(req.getRouteType()));
@@ -36,7 +36,8 @@ void	Dispatcher::dispatch(ClientConnection& client)
 	ResponseBuilder::build(req, res);
 
 	client.setResponseBuffer(ResponseBuilder::responseWriter(res)); //TODO
-	Logger::instance().log(DEBUG, "Dispatcher::dispatch response->" + client.getResponseBuffer());
+	if (res.getHeader("Content-Type") == "text/html")
+		Logger::instance().log(DEBUG, "Dispatcher::dispatch response->" + client.getResponseBuffer());
 	req.reset();
 	res.reset();
 	Logger::instance().log(DEBUG, "[Finished] Dispatcher::dispatch");

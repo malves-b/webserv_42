@@ -4,7 +4,7 @@ HttpRequest::HttpRequest()
 {
 	setMethod(RequestMethod::INVALID);
 	setParseError(ResponseStatus::OK);
-	getMeta().setContentLength(-1);
+	getMeta().setContentLength(0);
 	getMeta().setChunked(false);
 	getMeta().setConnectionClose(false);
 	getMeta().setExpectContinue(false);
@@ -125,6 +125,11 @@ void	HttpRequest::reset(void)
 	this->_expectingChunkSeparator = false;
 	this->_resolvedPath.clear();
 }
+
+// void	HttpRequest::setClientFD(int fd)
+// {
+// 	this->_clientFD = fd;
+// }
 
 RequestMethod::Method	HttpRequest::getMethod(void) const
 {
@@ -247,3 +252,8 @@ const std::string	HttpRequest::getResolvedPath(void) const
 {
 	return (this->_resolvedPath);
 }
+
+// int	HttpRequest::getClientFD(void) const
+// {
+// 	return (this->_clientFD);
+// }

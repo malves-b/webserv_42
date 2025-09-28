@@ -20,6 +20,7 @@ class RequestParse
 		static void	body(char c, HttpRequest& request);
 		static void	bodyChunked(char c, HttpRequest& request);
 		static std::string	extractQueryString(const std::string uri);
+		static bool	isGreaterThanMaxBodySize(std::size_t size);
 
 	public:
 		static void	handleRawRequest(const std::string& rawRequest, HttpRequest& request);

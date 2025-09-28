@@ -60,6 +60,12 @@ void	Router::resolve(HttpRequest& request, HttpResponse& response)
 	if (isStaticFile(index, status, request))
 	{
 		request.setRouteType(RouteType::StaticPage);
+		if (request.getMethod() != RequestMethod::GET || request.getMethod() != RequestMethod::HEAD) //Config ?
+		{
+			//TODO function
+			request.setRouteType(RouteType::Error);
+			response.setStatusCode(ResponseStatus::MethodNotAllowed);
+		}
 		return ;
 	}
 	if (checkErrorStatus(status, request, response))
@@ -103,6 +109,7 @@ bool Router::isStaticFile(const std::string& index, ResponseStatus::code& status
 	// 2. Testar novamente se o arquivo existe e é legível
 	if (stat(_resolvedPath.c_str(), &s) == 0 && S_ISREG(s.st_mode))
 	{
+		Logger::instance().log(DEBUG, "Router::isStaticFile does it exist");
 		if (access(_resolvedPath.c_str(), R_OK) == 0)
 		{
 			req.setResolvedPath(_resolvedPath);
