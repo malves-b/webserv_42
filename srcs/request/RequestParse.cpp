@@ -322,14 +322,13 @@ void	RequestParse::checkMethod(HttpRequest& request)
 	RequestMethod::Method m = request.getMethod();
 	for (size_t i = 0; i < size; ++i)
 	{
-		Logger::instance().log(DEBUG, "RequestParse::checkMethod -> "
-				+ toString(ServerConfig::instance().allow_methods[i]));
-		if (ServerConfig::instance().allow_methods[i] != m)
-		{
-			request.setParseError(ResponseStatus::MethodNotAllowed);
-			Logger::instance().log(DEBUG, "RequestParse::checkMethod -> "
-				+ toString(ServerConfig::instance().allow_methods[i])
-				+ "!=" + toString(m));
-		}
+		// Logger::instance().log(DEBUG, "RequestParse::checkMethod -> "
+		// 		+ toString(ServerConfig::instance().allow_methods[i]));
+		if (ServerConfig::instance().allow_methods[i] == m)
+			return ;
 	}
+	request.setParseError(ResponseStatus::MethodNotAllowed);
+	// Logger::instance().log(DEBUG, "RequestParse::checkMethod -> "
+	// 	+ toString(ServerConfig::instance().allow_methods[i])
+	// 	+ "!=" + toString(m));
 }
