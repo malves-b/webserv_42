@@ -57,10 +57,15 @@ void	Router::resolve(HttpRequest& request, HttpResponse& response)
 	Logger::instance().log(DEBUG,
 		"computeResolvedPath [Path -> " + request.getResolvedPath() + "]");
 
+	if (isUpload(ServerConfig::instance().upload_path, request))
+	{
+		request.setRouteType(RouteType::Upload);
+		return ;
+	}
 	if (isStaticFile(index, status, request))
 	{
 		request.setRouteType(RouteType::StaticPage);
-		if (request.getMethod() != RequestMethod::GET || request.getMethod() != RequestMethod::HEAD) //Config ?
+		if (request.getMethod() != RequestMethod::GET) //Config ?
 		{
 			//TODO function
 			request.setRouteType(RouteType::Error);
@@ -80,6 +85,16 @@ void	Router::resolve(HttpRequest& request, HttpResponse& response)
 
 	request.setRouteType(RouteType::Error);
 	response.setStatusCode(ResponseStatus::NotFound);
+}
+
+bool	Router::isUpload(const std::string& uploadPath, HttpRequest& req)
+{
+	if (req.getResolvedPath() == uploadPath
+		&& (req.getMethod() == RequestMethod::POST || req.getMethod() == RequestMethod::PUT))
+	{
+		return (true);
+	}
+	return (false);
 }
 
 bool Router::isStaticFile(const std::string& index, ResponseStatus::code& status, HttpRequest& req)

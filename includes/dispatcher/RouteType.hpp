@@ -19,6 +19,7 @@ struct RouteType
 	{
 		StaticPage = 0,
 		CGI,
+		Upload,
 		Error
 	};
 };
