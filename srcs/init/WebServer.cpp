@@ -70,15 +70,15 @@ void	WebServer::receiveRequest(size_t i)
 				this->_pollFDs[i].events = POLLOUT; //After receiving a full request, switch events to POLLOUT
 				client.setSentBytes(0);
 			}
-			else if (client.getRequest().getMeta().getExpectContinue())
-			{
-				Logger::instance().log(DEBUG, "WebServer::receiveRequest Expect True send");
-				//client.clearBuffer(); //rename
-				client.setResponseBuffer("HTTP/1.1 100 Continue\r\n\r\n");
-				this->_pollFDs[i].events = POLLOUT; //After receiving a full request, switch events to POLLOUT
-				client.setSentBytes(0);
-				client.getRequest().getMeta().setExpectContinue(false);
-			}
+			// else if (client.getRequest().getMeta().getExpectContinue())
+			// {
+			// 	Logger::instance().log(DEBUG, "WebServer::receiveRequest Expect True send");
+			// 	//client.clearBuffer(); //rename
+			// 	client.setResponseBuffer("HTTP/1.1 100 Continue\r\n\r\n");
+			// 	this->_pollFDs[i].events = POLLOUT; //After receiving a full request, switch events to POLLOUT
+			// 	client.setSentBytes(0);
+			// 	client.getRequest().getMeta().setExpectContinue(false);
+			// }
 			else if (bytesRecv == 0)
 				this->removeClientConnection(client.getFD(), i);
 		}
@@ -118,6 +118,7 @@ void	WebServer::sendResponse(size_t i)
 			ssize_t	bytesSent = client.sendData(client, sent, toSend);
 			if (bytesSent > 0)
 			{
+				Logger::instance().log(DEBUG, "WebServer::sendResponse bytesSent -> " + toString(bytesSent));
 				client.setSentBytes(sent + static_cast<size_t>(bytesSent));
 				if (client.getSentBytes() == totalLen)
 				{
@@ -161,15 +162,15 @@ void	WebServer::addToPollFD(int fd, short events)
 }
 
 //HELPER FUNCTION
-static int	getPollTimeout(bool CGI) //refactor later
-{
-	//time_t	now = time(NULL); //to compare with CGI start time
-
-	if (!CGI)
-		return (-1); //no timeout
-	else
-		return (10000); //10 seconds
-}
+// static int	getPollTimeout(bool CGI) //refactor later
+// {
+// 	//time_t	now = time(NULL); //to compare with CGI start time
+// 	Logger::instance().log(DEBUG, "[Started] getPollTimeout");
+// 	if (!CGI)
+// 		return (-1); //no timeout
+// 	else
+// 		return (10000); //10 seconds
+// }
 //
 
 void	WebServer::runServer(void)
@@ -177,9 +178,11 @@ void	WebServer::runServer(void)
 	Logger::instance().log(DEBUG, "[Started] WebServer::runServer");
 	while (true)
 	{
-		//Logger::instance().log(DEBUG, "WebServer::runServer started loop");
-		int timeout = getPollTimeout(false); //update poll() timeout parameter accordingly to the presence of CGI process
-		int	ready = ::poll(&this->_pollFDs[0], this->_pollFDs.size(), timeout);
+		Logger::instance().log(DEBUG, "WebServer::runServer started loop");
+		//int timeout = getPollTimeout(false); //update poll() timeout parameter accordingly to the presence of CGI process
+		int	ready = ::poll(&this->_pollFDs[0], this->_pollFDs.size(), -1);
+
+		Logger::instance().log(DEBUG, "WebServer::runServer after poll");
 
 		if (ready == -1) //error
 		{
@@ -197,6 +200,8 @@ void	WebServer::runServer(void)
 
 		for (ssize_t i = static_cast<ssize_t>(this->_pollFDs.size()) - 1; i >= 0 ; i--)  // Loop through all poll monitored FDs //Backward iteration avoids messing with indices when removing clients
 		{
+			Logger::instance().log(DEBUG, "WebServer::runServer -> loop through poll fds");
+
 			if (this->_pollFDs[i].revents & POLLIN) //check if POLLIN bit is set, regardless of what other bits may also be set
 			{
 				if (this->_pollFDs[i].fd == this->_serverSocket.getFD()) // Ready on listening socket -> accept new client
