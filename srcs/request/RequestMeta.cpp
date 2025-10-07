@@ -34,7 +34,7 @@ void	RequestMeta::resetMeta(void)
 	this->_contentLength = 0;
 	this->_chunked = false;
 	this->_connectionClose = false;
-	this->_expectContinue = true;
+	this->_expectContinue = false;
 	this->_host.clear();
 }
 
