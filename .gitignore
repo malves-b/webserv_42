@@ -36,3 +36,5 @@ webserv
 logs/
 objs/
 
+*.json
+
