@@ -1,4 +1,5 @@
 #include <iostream>
+#include <sys/wait.h>
 #include <dispatcher/CgiHandler.hpp>
 #include <utils/Logger.hpp>
 #include <response/ResponseBuilder.hpp>
@@ -127,6 +128,28 @@ void	CgiHandler::setupRedirection(int *stdinPipe, int *stdoutPipe)
 	close(stdoutPipe[1]);
 }
 
+void	CgiHandler::checkForFailure(pid_t pid, HttpResponse& response)
+{
+	int status;
+	waitpid(pid, &status, 0);
+
+	if (WIFEXITED(status))
+	{
+		int exitCode = WEXITSTATUS(status);
+		if (exitCode != 0)
+		{
+			Logger::instance().log(ERROR, "CgiHandler CGI exited with code " + toString(exitCode));
+			response.setStatusCode(ResponseStatus::InternalServerError);
+		}
+	}
+	else if (WIFSIGNALED(status))
+	{
+		int signal = WTERMSIG(status);
+		Logger::instance().log(ERROR, "CgiHandler CGI terminated by signal " + toString(signal));
+		response.setStatusCode(ResponseStatus::InternalServerError);
+	}
+}
+
 void	CgiHandler::handle(HttpRequest &request, HttpResponse& response)
 {
 	Logger::instance().log(DEBUG, "[Started] CgiHandler::handle");
@@ -167,11 +190,12 @@ void	CgiHandler::handle(HttpRequest &request, HttpResponse& response)
 		freeEnvp(envp);
 
 		Logger::instance().log(ERROR, "CgiHandler::handle execve()");
-		exit(EXIT_FAILURE); //TODO como capturar esse erro
+		exit(EXIT_FAILURE);
 	}
 	else
 	{
 		close(stdinPipe[0]);
+		checkForFailure(pid, response);
 		close(stdoutPipe[1]);
 
 		// write body
