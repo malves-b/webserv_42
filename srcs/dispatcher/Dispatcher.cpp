@@ -34,6 +34,7 @@ void	Dispatcher::dispatch(ClientConnection& client)
 	}
 
 	ResponseBuilder::build(req, res);
+	client._keepAlive = req.getMeta().shouldClose();
 
 	client.setResponseBuffer(ResponseBuilder::responseWriter(res)); //TODO
 	if (res.getHeader("Content-Type") == "text/html")

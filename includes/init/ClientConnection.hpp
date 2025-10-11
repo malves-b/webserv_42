@@ -16,12 +16,15 @@ class ClientConnection
 		//time_t				_lastActive;
 		HttpRequest			_httpRequest;
 		HttpResponse		_httpResponse;
+		
 
 		ClientConnection&	operator=(ClientConnection const& rhs); //memmove?
 	public:
 		ClientConnection(int fd);
 		ClientConnection(ClientConnection const& src); //memmove?
 		~ClientConnection(void);
+
+		bool				_keepAlive; //test
 
 		ssize_t				recvData(void);
 		ssize_t				sendData(ClientConnection &client, size_t sent, size_t toSend);

@@ -11,7 +11,7 @@
 #include <stdexcept>
 #include <string>
 
-ClientConnection::ClientConnection(int fd) : _fd(fd), _sentBytes(0) {}
+ClientConnection::ClientConnection(int fd) : _fd(fd), _sentBytes(0), _keepAlive(true) {}
 
 ClientConnection::ClientConnection(ClientConnection const& src) : _fd(src._fd) {}
 

@@ -133,6 +133,7 @@ void	ResponseBuilder::build(HttpRequest& req, HttpResponse& res)
 	if (res.getStatusCode() >= 400)
 	{
 		res.addHeader("connection", "close");
+		req.getMeta().setConnectionClose(true);
 		if (!errorPageConfig(res))
 		{
 			std::string content = errorPageGenerator(res.getStatusCode());
