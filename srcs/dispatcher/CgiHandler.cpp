@@ -155,9 +155,14 @@ void	CgiHandler::handle(HttpRequest &request, HttpResponse& response)
 		setupRedirection(stdinPipe, stdoutPipe);
 
 		std::string resolvedpath = request.getResolvedPath();
+		std::string rootDir = resolvedpath.substr(0, resolvedpath.find_last_of('/'));
 		char* argv[] = {&resolvedpath[0], NULL};
-
 		char **envp = buildEnvp(request);
+		if (chdir(rootDir.c_str()) == -1)
+		{
+			Logger::instance().log(ERROR, "CgiHandler::handle chdir() failed");
+			exit(EXIT_FAILURE);
+		}
 		execve(resolvedpath.c_str(), argv, envp);
 		freeEnvp(envp);
 
