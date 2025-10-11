@@ -32,7 +32,7 @@ std::string	ResponseBuilder::errorPageGenerator(ResponseStatus::code code)
 		<< "<body style=\"text-align: center; padding: 50px;\">\r\n"
 		<< "<h1>" << code << " - Error</h1>\r\n"
 		<< "<img src=\"https://http.cat/" << code
-		<< " alt=\"Error HTTP " << code << "\" style=\"max-width: 80%; height: auto;\">\r\n"
+		<< "\" alt=\"Error HTTP " << code << "\" style=\"max-width: 80%; height: auto;\">\r\n"
 		<< "</body>\r\n"
 		<< "</html>\r\n";
 

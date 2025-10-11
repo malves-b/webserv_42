@@ -148,6 +148,12 @@ void	RequestParse::uri(const std::string str, HttpRequest& request)
 	std::string::size_type queryPos = uri.find('?');
 	if (queryPos != std::string::npos)
 		uri = str.substr(0, queryPos);
+	if (uri.length() > 2048)
+	{
+		request.setParseError(ResponseStatus::UriTooLong);
+		Logger::instance().log(ERROR, "RequestParse::uri Uri too long");
+		return ;
+	}
 	request.setUri(uri);
 	request.setQueryString(extractQueryString(str));
 }
