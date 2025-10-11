@@ -126,11 +126,6 @@ void	HttpRequest::reset(void)
 	this->_resolvedPath.clear();
 }
 
-// void	HttpRequest::setClientFD(int fd)
-// {
-// 	this->_clientFD = fd;
-// }
-
 RequestMethod::Method	HttpRequest::getMethod(void) const
 {
 	return (this->_method);

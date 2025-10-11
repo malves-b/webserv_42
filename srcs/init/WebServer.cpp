@@ -70,15 +70,15 @@ void	WebServer::receiveRequest(size_t i)
 				this->_pollFDs[i].events = POLLOUT; //After receiving a full request, switch events to POLLOUT
 				client.setSentBytes(0);
 			}
-			// else if (client.getRequest().getMeta().getExpectContinue())
-			// {
-			// 	Logger::instance().log(DEBUG, "WebServer::receiveRequest Expect True send");
-			// 	//client.clearBuffer(); //rename
-			// 	client.setResponseBuffer("HTTP/1.1 100 Continue\r\n\r\n");
-			// 	this->_pollFDs[i].events = POLLOUT; //After receiving a full request, switch events to POLLOUT
-			// 	client.setSentBytes(0);
-			// 	client.getRequest().getMeta().setExpectContinue(false);
-			// }
+			else if (client.getRequest().getMeta().getExpectContinue())
+			{
+				Logger::instance().log(DEBUG, "WebServer::receiveRequest Expect True send");
+				//client.clearBuffer(); //rename
+				client.setResponseBuffer("HTTP/1.1 100 Continue\r\n\r\n");
+				this->_pollFDs[i].events = POLLOUT; //After receiving a full request, switch events to POLLOUT
+				client.setSentBytes(0);
+				client.getRequest().getMeta().setExpectContinue(false);
+			}
 			else if (bytesRecv == 0)
 				this->removeClientConnection(client.getFD(), i);
 		}
@@ -125,6 +125,8 @@ void	WebServer::sendResponse(size_t i)
 					client.clearBuffer(); //call _responseBuffer.clear()?
 					client.setSentBytes(0);
 					this->_pollFDs[i].events = POLLIN; //After sending full response, switch back to POLLIN
+					if (client._keepAlive)
+						this->removeClientConnection(it->second.getFD(), i);
 					Logger::instance().log(DEBUG, "WebServer::sendResponse back listen");
 				}
 			}
@@ -146,6 +148,7 @@ void	WebServer::sendResponse(size_t i)
 
 void	WebServer::removeClientConnection(int clientFD, size_t pollFDIndex)
 {
+	Logger::instance().log(DEBUG, "WebServer::removeClientConnection");
 	// std::cout << "Closing client fd=" << clientFD << std::endl;
 	// std::cout << "removing client connection..." << std::endl; //debug
 	this->_clients.erase(clientFD); //erase by key // the clientConnection destructor already handles close the fd -> RAII
@@ -178,11 +181,11 @@ void	WebServer::runServer(void)
 	Logger::instance().log(DEBUG, "[Started] WebServer::runServer");
 	while (true)
 	{
-		Logger::instance().log(DEBUG, "WebServer::runServer started loop");
+		//Logger::instance().log(DEBUG, "WebServer::runServer started loop");
 		//int timeout = getPollTimeout(false); //update poll() timeout parameter accordingly to the presence of CGI process
 		int	ready = ::poll(&this->_pollFDs[0], this->_pollFDs.size(), -1);
 
-		Logger::instance().log(DEBUG, "WebServer::runServer after poll");
+		//Logger::instance().log(DEBUG, "WebServer::runServer after poll");
 
 		if (ready == -1) //error
 		{
