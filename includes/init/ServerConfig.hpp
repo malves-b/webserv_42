@@ -29,9 +29,10 @@ class ServerConfig
 		std::size_t					client_max_body_size;
 		//TODO return
 		bool						autoindex; //TODO matheus
-		const std::string			upload_path;  //TODO
+		std::string			upload_path;  //TODO
 
 		const std::string			errorPage(int error);
+		std::string			redirect;
 };
 
 #endif //SERVER_CONFIG_HPP

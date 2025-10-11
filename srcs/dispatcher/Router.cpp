@@ -56,6 +56,12 @@ void	Router::resolve(HttpRequest& request, HttpResponse& response)
 
 	Logger::instance().log(DEBUG,
 		"computeResolvedPath [Path -> " + request.getResolvedPath() + "]");
+	
+	if (isRedirect(request, response))
+	{
+		request.setRouteType(RouteType::Redirect);
+		return ;
+	}
 
 	if (isUpload(ServerConfig::instance().upload_path, request))
 	{
@@ -182,6 +188,22 @@ bool	Router::hasCgiExtension(const std::string& path)
 			if (ext == cgiExtensions[i])
 				return (true);
 		}
+	}
+	return (false);
+}
+
+bool	Router::isRedirect(HttpRequest& req, HttpResponse& res)
+{
+	//TODO config complete
+	//for (vector redirect struct?)
+	Logger::instance().log(DEBUG, "Router::isRedirect -> " + req.getUri());
+	if (req.getUri() == "/static/contact.html")
+	{
+		req.getMeta().setRedirect(true);
+		res.setChunked(false);
+		res.addHeader("Location", ServerConfig::instance().redirect);
+		res.setStatusCode(ResponseStatus::TemporaryRedirect); //TODO config
+		return (true);
 	}
 	return (false);
 }

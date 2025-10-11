@@ -24,6 +24,7 @@ class Router
 						const std::string resolvedPath,
 						ResponseStatus::code& status);
 		static bool	hasCgiExtension(const std::string& path);
+		static bool	isRedirect(HttpRequest& req, HttpResponse& res);
 
 	public:
 		static void	resolve(HttpRequest& request, HttpResponse& response);

@@ -10,6 +10,7 @@ class RequestMeta
 		bool		_chunked; // transfer encoding
 		bool		_connectionClose;
 		bool		_expectContinue; //expect 100-continue //before send body
+		bool		_isRedirect;
 		std::string	_host;
 
 		RequestMeta(const RequestMeta& rhs); //blocked
@@ -24,6 +25,7 @@ class RequestMeta
 		void	setChunked(bool chunked);
 		void	setConnectionClose(bool connection_close);
 		void	setExpectContinue(bool expect_continue);
+		void	setRedirect(bool redirect);
 		void	setHost(const std::string& host);
 		void	resetMeta(void);
 
@@ -32,6 +34,7 @@ class RequestMeta
 		bool		isChunked(void) const;
 		bool		shouldClose(void) const;
 		bool		getExpectContinue(void) const;
+		bool		isRedirect(void) const;
 		std::string	getHost(void) const;
 };
 

@@ -24,6 +24,11 @@ void	RequestMeta::setExpectContinue(bool expect_continue)
 	this->_expectContinue = expect_continue;
 }
 
+void	RequestMeta::setRedirect(bool redirect)
+{
+	this->_isRedirect = redirect;
+}
+
 void	RequestMeta::setHost(const std::string& host)
 {
 	this->_host = host;
@@ -35,6 +40,7 @@ void	RequestMeta::resetMeta(void)
 	this->_chunked = false;
 	this->_connectionClose = false;
 	this->_expectContinue = false;
+	this->_isRedirect = false;
 	this->_host.clear();
 }
 
@@ -45,5 +51,7 @@ bool	RequestMeta::isChunked(void) const { return (this->_chunked); }
 bool	RequestMeta::shouldClose(void) const { return (this->_connectionClose); }
 
 bool	RequestMeta::getExpectContinue(void) const { return (this->_expectContinue); }
+
+bool	RequestMeta::isRedirect(void) const { return (this->_isRedirect); }
 
 std::string	RequestMeta::getHost(void) const { return (this->_host); }

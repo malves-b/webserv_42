@@ -22,6 +22,8 @@ void	Dispatcher::dispatch(ClientConnection& client)
 
 	switch (req.getRouteType())
 	{
+		case RouteType::Redirect:
+			break ;
 		case RouteType::StaticPage:
 			StaticPageHandler::handle(req, res);
 			break ;

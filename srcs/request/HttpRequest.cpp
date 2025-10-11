@@ -8,6 +8,7 @@ HttpRequest::HttpRequest()
 	getMeta().setChunked(false);
 	getMeta().setConnectionClose(false);
 	getMeta().setExpectContinue(false);
+	getMeta().setRedirect(false);
 	setRequestState(RequestState::RequestLine);
 	setParsingChunkSize(true);
 	setExpectingChunkSeparator(false);

@@ -4,9 +4,10 @@ ServerConfig::ServerConfig() : root("/home/jose/webserv_42/webservinho_app"),
 	index("index.html"),
 	cgiPath("/home/jose/webserv_42/webservinho_app/cgi-bin"),
 	client_max_body_size(1048576),
-	autoindex(true),
-	upload_path("/home/jose/webserv_42/webservinho_app/uploads")
+	autoindex(true)
 {
+	redirect = "/static/about.html";
+	upload_path = "/home/jose/webserv_42/webservinho_app/uploads";
 	this->allow_methods.push_back(RequestMethod::GET);
 	this->allow_methods.push_back(RequestMethod::POST);
 	error_page[404] = "webservinho_app/errors/404.html";
