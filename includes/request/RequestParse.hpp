@@ -5,6 +5,10 @@
 #include <request/RequestMethod.hpp>
 #include <request/HttpRequest.hpp>
 
+const size_t MAX_URI = 2048;
+const size_t MAX_HEADER_LINE = 8192;
+const size_t MAX_TOTAL_HEADER_SIZE = 16384;
+
 class RequestParse
 {
 	private:

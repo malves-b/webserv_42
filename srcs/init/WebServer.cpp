@@ -203,7 +203,7 @@ void	WebServer::runServer(void)
 
 		for (ssize_t i = static_cast<ssize_t>(this->_pollFDs.size()) - 1; i >= 0 ; i--)  // Loop through all poll monitored FDs //Backward iteration avoids messing with indices when removing clients
 		{
-			Logger::instance().log(DEBUG, "WebServer::runServer -> loop through poll fds");
+			//Logger::instance().log(DEBUG, "WebServer::runServer -> loop through poll fds");
 
 			if (this->_pollFDs[i].revents & POLLIN) //check if POLLIN bit is set, regardless of what other bits may also be set
 			{

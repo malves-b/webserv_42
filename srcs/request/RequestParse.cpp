@@ -148,10 +148,11 @@ void	RequestParse::uri(const std::string str, HttpRequest& request)
 	std::string::size_type queryPos = uri.find('?');
 	if (queryPos != std::string::npos)
 		uri = str.substr(0, queryPos);
-	if (uri.length() > 2048)
+	if (uri.length() > MAX_URI)
 	{
-		request.setParseError(ResponseStatus::UriTooLong);
 		Logger::instance().log(ERROR, "RequestParse::uri Uri too long");
+		request.setParseError(ResponseStatus::UriTooLong);
+		request.setRequestState(RequestState::Complete);
 		return ;
 	}
 	request.setUri(uri);
@@ -174,6 +175,14 @@ void	RequestParse::headers(const std::string& buffer, HttpRequest& request)
 	std::string key = toLower(trim(buffer.substr(0, pos)));
 	std::string value = trim((pos + 1 < buffer.size()
 							? buffer.substr(pos + 1) : std::string()));
+	
+	if (buffer.length() > MAX_HEADER_LINE)
+	{
+		request.setParseError(ResponseStatus::PayloadTooLarge);
+		request.setRequestState(RequestState::Complete);
+		Logger::instance().log(ERROR, "RequestParse::headers PayloadTooLarge");
+		return ;
+	}
 
 	if (key == "host")
 		request.getMeta().setHost(value);
