@@ -22,6 +22,8 @@ class Router
 		static bool	isCgi(const std::string& cgiPath,
 						const std::string resolvedPath,
 						ResponseStatus::code& status);
+		static bool isAutoIndex(const std::string& index,
+						HttpRequest& req);
 		static bool	hasCgiExtension(const std::string& path);
 
 	public:

@@ -57,6 +57,13 @@ void	Router::resolve(HttpRequest& request, HttpResponse& response)
 	Logger::instance().log(DEBUG,
 		"computeResolvedPath [Path -> " + request.getResolvedPath() + "]");
 
+	if (isAutoIndex(index, request))
+	{
+		request.setRouteType(RouteType::AutoIndex);
+		return;
+	}
+	if (checkErrorStatus(status, request, response))
+		return ;
 	if (isStaticFile(index, status, request))
 	{
 		request.setRouteType(RouteType::StaticPage);
@@ -145,6 +152,31 @@ bool	Router::isCgi(const std::string& cgiPath, const std::string resolvedPath, R
 	if (hasCgiExtension(resolvedPath))
 		return (true);
 	return (false);
+}
+
+/* */
+bool Router::isAutoIndex(const std::string& index, HttpRequest& req)
+{
+    std::string _resolvedPath = req.getResolvedPath();
+    struct stat s;
+
+    // check is a directory
+    if (stat(_resolvedPath.c_str(), &s) == 0 && S_ISDIR(s.st_mode))
+    {
+        if (ServerConfig::instance().autoindex)
+        {
+            // check if have index file
+            std::string indexPath = _resolvedPath;
+            if (indexPath[indexPath.length() - 1] != '/')
+                indexPath += '/';
+            indexPath += index;
+            
+            struct stat indexStat;
+            if (stat(indexPath.c_str(), &indexStat) != 0 || !S_ISREG(indexStat.st_mode)){
+                return true;}
+        }
+    }
+    return false;
 }
 
 bool	Router::hasCgiExtension(const std::string& path)

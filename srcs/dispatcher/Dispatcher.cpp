@@ -2,6 +2,7 @@
 #include <dispatcher/Router.hpp>
 #include <dispatcher/StaticPageHandler.hpp>
 #include <dispatcher/CgiHandler.hpp>
+#include <dispatcher/AutoIndexHandler.hpp>
 #include <response/ResponseBuilder.hpp>
 #include <utils/Logger.hpp>
 #include <utils/string_utils.hpp>
@@ -17,6 +18,7 @@ void	Dispatcher::dispatch(ClientConnection& client)
 
 	Logger::instance().log(DEBUG,
 		"StaticPageHandler::handle Route -> " + toString(req.getRouteType()));
+	/* what I must put here ????? */
 	Logger::instance().log(DEBUG,
 		"Dispatcher::dispatch [Path -> " + req.getResolvedPath() + "]");
 
@@ -28,6 +30,9 @@ void	Dispatcher::dispatch(ClientConnection& client)
 		case RouteType::CGI:
 			CgiHandler::handle(req, res);
 			break ;
+		case RouteType::AutoIndex:
+			AutoIndexHandler::handle(req, res);
+			break;
 		case RouteType::Error:
 		default:
 			break ;
