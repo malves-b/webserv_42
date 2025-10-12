@@ -2,6 +2,7 @@
 #include <dispatcher/Router.hpp>
 #include <dispatcher/StaticPageHandler.hpp>
 #include <dispatcher/CgiHandler.hpp>
+#include <dispatcher/UploadHandler.hpp>
 #include <response/ResponseBuilder.hpp>
 #include <utils/Logger.hpp>
 #include <utils/string_utils.hpp>
@@ -24,6 +25,9 @@ void	Dispatcher::dispatch(ClientConnection& client)
 	{
 		case RouteType::Redirect:
 			break ;
+		case RouteType::Upload:
+			UploadHandler::handle(req, res);
+			break ;
 		case RouteType::StaticPage:
 			StaticPageHandler::handle(req, res);
 			break ;
@@ -36,7 +40,11 @@ void	Dispatcher::dispatch(ClientConnection& client)
 	}
 
 	ResponseBuilder::build(req, res);
-	client._keepAlive = req.getMeta().shouldClose();
+
+	if (req.getMeta().shouldClose()) //TODO
+		client._keepAlive = false;
+	else
+		client._keepAlive = true;
 
 	client.setResponseBuffer(ResponseBuilder::responseWriter(res)); //TODO
 	if (res.getHeader("Content-Type") == "text/html")

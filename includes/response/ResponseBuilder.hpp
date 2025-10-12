@@ -18,6 +18,7 @@ class ResponseBuilder
 		static void					setMinimumHeaders(HttpResponse& response);
 		static std::string			errorPageGenerator(ResponseStatus::code code);
 		static bool					errorPageConfig(HttpResponse& res);
+		static bool					shouldCloseConnection(int statusCode);
 
 	public:
 		static const std::string	responseWriter(HttpResponse& response);

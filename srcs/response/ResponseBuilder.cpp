@@ -126,14 +126,20 @@ void	ResponseBuilder::build(HttpRequest& req, HttpResponse& res)
 		"[ResponseBuilder::build] [StatusCode ->" + toString(res.getStatusCode()) + "]");
 
 	setMinimumHeaders(res);
+	res.addHeader("connection", "keep-live");
 
-	if (req.getMeta().isChunked())
-		res.addHeader("connection", "keep-live");
-
-	if (res.getStatusCode() >= 400)
+	if (req.getMeta().shouldClose())
 	{
 		res.addHeader("connection", "close");
 		req.getMeta().setConnectionClose(true);
+	}
+	if (res.getStatusCode() >= 400)
+	{
+		if (shouldCloseConnection(res.getStatusCode()))
+		{
+			res.addHeader("connection", "close");
+			req.getMeta().setConnectionClose(true);
+		}
 		if (!errorPageConfig(res))
 		{
 			std::string content = errorPageGenerator(res.getStatusCode());
@@ -162,4 +168,23 @@ bool	ResponseBuilder::errorPageConfig(HttpResponse& res)
 		return (true);
 	}
 	return (false);
+}
+
+bool	ResponseBuilder::shouldCloseConnection(int statusCode)
+{
+	switch (statusCode)
+	{
+		case 400: // Bad Request
+		case 408: // Request Timeout
+		case 411: // Length Required
+		case 413: // Payload Too Large
+		case 414: // URI Too Long
+		case 431: // Request Header Fields Too Large
+		case 500: // Internal Server Error
+		case 501: // Not Implemented
+		case 505: // HTTP Version Not Supported
+			return (true);
+		default:
+			return (false);
+	}
 }

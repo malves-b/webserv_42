@@ -63,7 +63,7 @@ void	Router::resolve(HttpRequest& request, HttpResponse& response)
 		return ;
 	}
 
-	if (isUpload(ServerConfig::instance().upload_path, request))
+	if (isUpload("/upload", request)) //TODO config
 	{
 		request.setRouteType(RouteType::Upload);
 		return ;
@@ -95,12 +95,16 @@ void	Router::resolve(HttpRequest& request, HttpResponse& response)
 
 bool	Router::isUpload(const std::string& uploadPath, HttpRequest& req)
 {
-	if (req.getResolvedPath() == uploadPath
-		&& (req.getMethod() == RequestMethod::POST || req.getMethod() == RequestMethod::PUT))
+	const std::string& uri = req.getUri();
+	Logger::instance().log(DEBUG, "Router::isUpload compare URI -> " + uri
+		+ " | upload path -> " + uploadPath);
+	if (uri == uploadPath &&
+		(req.getMethod() == RequestMethod::POST || req.getMethod() == RequestMethod::PUT) /* &&
+		!location.upload_path.empty() */)
 	{
-		return (true);
+		return true;
 	}
-	return (false);
+	return false;
 }
 
 bool Router::isStaticFile(const std::string& index, ResponseStatus::code& status, HttpRequest& req)

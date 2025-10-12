@@ -125,8 +125,11 @@ void	WebServer::sendResponse(size_t i)
 					client.clearBuffer(); //call _responseBuffer.clear()?
 					client.setSentBytes(0);
 					this->_pollFDs[i].events = POLLIN; //After sending full response, switch back to POLLIN
-					if (client._keepAlive)
+					if (!client._keepAlive)
+					{
+						Logger::instance().log(DEBUG, "WebServer::sendResponse keepalive false");
 						this->removeClientConnection(it->second.getFD(), i);
+					}
 					Logger::instance().log(DEBUG, "WebServer::sendResponse back listen");
 				}
 			}

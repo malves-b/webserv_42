@@ -1,4 +1,5 @@
 #include "request/HttpRequest.hpp"
+#include <utils/Logger.hpp>
 
 HttpRequest::HttpRequest()
 {
@@ -125,6 +126,7 @@ void	HttpRequest::reset(void)
 	this->_parsingChunkSize = false;
 	this->_expectingChunkSeparator = false;
 	this->_resolvedPath.clear();
+	Logger::instance().log(DEBUG, "HttpRequest::reset complete");
 }
 
 RequestMethod::Method	HttpRequest::getMethod(void) const
