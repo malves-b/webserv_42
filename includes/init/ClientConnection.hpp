@@ -21,6 +21,7 @@ class ClientConnection
 		ClientConnection&	operator=(ClientConnection const& rhs); //memmove?
 	public:
 		ClientConnection(int fd);
+		ClientConnection();
 		ClientConnection(ClientConnection const& src); //memmove?
 		~ClientConnection(void);
 
@@ -31,13 +32,15 @@ class ClientConnection
 		bool				completedRequest(void);
 		void				clearBuffer(void);
 
+		void adoptFD(int fd);
+
 		//accessors
 		int const&			getFD(void) const;
 		size_t const&		getSentBytes(void) const;
 		std::string const&	getRequestBuffer(void) const;
-		std::string /* const& */	getResponseBuffer(void) /* const */;
+		std::string const&	getResponseBuffer(void) const;
 		void				setSentBytes(size_t bytes);
-		void				setResponseBuffer(const std::string buffer);
+		void				setResponseBuffer(const std::string& buffer);
 
 		//:D
 		HttpRequest&	getRequest(void);

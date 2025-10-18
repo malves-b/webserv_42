@@ -13,12 +13,25 @@
 
 ClientConnection::ClientConnection(int fd) : _fd(fd), _sentBytes(0), _keepAlive(true) {}
 
-ClientConnection::ClientConnection(ClientConnection const& src) : _fd(src._fd) {}
+ClientConnection::ClientConnection() : _fd(-1), _sentBytes(0), _keepAlive(true) {}
+
+//ClientConnection::ClientConnection(ClientConnection const& src) : _fd(src._fd) {}
+
+ClientConnection::ClientConnection(ClientConnection const& src) : _fd(-1), _sentBytes(0), _keepAlive(src._keepAlive) {}
 
 ClientConnection::~ClientConnection(void)
 {
-	if (this->_fd != -1)
+	// if (this->_fd != -1)
+	// 	::close(this->_fd);
+	if (_fd >= 0)
 		::close(this->_fd);
+}
+
+void ClientConnection::adoptFD(int fd)
+{
+	if (_fd >= 0)
+		::close(this->_fd);
+	_fd = fd;
 }
 
 ssize_t	ClientConnection::recvData(void)
@@ -28,7 +41,7 @@ ssize_t	ClientConnection::recvData(void)
 		throw std::runtime_error("error: recvData: fd == -1");
 	}
 
-	char	buffer[1024]; //4096?
+	char	buffer[4096];
 	ssize_t	bytesRecv;
 
 	bytesRecv = ::recv(this->_fd, buffer, sizeof(buffer), 0);
@@ -46,8 +59,11 @@ ssize_t	ClientConnection::recvData(void)
 	}
 	if (bytesRecv == 0)
 		return (0);
-	std::string	errorMsg(strerror(errno));
-	throw std::runtime_error("error: recv: " + errorMsg);
+	if (errno == EAGAIN || errno == EWOULDBLOCK)
+		return (-1);
+	return (-2);
+	// std::string	errorMsg(strerror(errno));
+	// throw std::runtime_error("error: recv: " + errorMsg);
 }
 
 ssize_t	ClientConnection::sendData(ClientConnection &client, size_t sent, size_t toSend)
@@ -59,28 +75,21 @@ ssize_t	ClientConnection::sendData(ClientConnection &client, size_t sent, size_t
 
 	ssize_t	bytesSent;
 
-	bytesSent = send(client.getFD(), client.getResponseBuffer().c_str() + sent, toSend, 0);
+	const std::string& resp = client.getResponseBuffer();
+	const char* p = resp.c_str() + sent;
+
+	//MSG_NOSIGNAL to avoid SIGPIPE
+	bytesSent = send(client.getFD(), p, toSend, MSG_NOSIGNAL);
 	if (bytesSent >= 0)
 		return (bytesSent);
-	std::string	errorMsg(strerror(errno));
-	throw	std::runtime_error("error: send: " + errorMsg);
+
+	if (errno == EAGAIN || errno == EWOULDBLOCK)
+		return (-1);
+	return (-2);
+
+	// std::string	errorMsg(strerror(errno));
+	// throw	std::runtime_error("error: send: " + errorMsg);
 }
-
-// ssize_t	ClientConnection::sendIntermediateData(int clientFD, size_t sent, size_t toSend, std::string str)
-// {
-// 	if (clientFD == -1)
-// 	{
-// 		throw std::runtime_error("error: recvData: fd == -1");
-// 	}
-
-// 	ssize_t	bytesSent;
-
-// 	bytesSent = send(clientFD, str.c_str() + sent, toSend, 0);
-// 	if (bytesSent >= 0)
-// 		return (bytesSent);
-// 	std::string	errorMsg(strerror(errno));
-// 	throw	std::runtime_error("error: send: " + errorMsg);
-// }
 
 bool	ClientConnection::completedRequest(void)
 {
@@ -122,7 +131,7 @@ std::string const&	ClientConnection::getRequestBuffer(void) const
 	return (_requestBuffer);
 }
 
-std::string /* const& */	ClientConnection::getResponseBuffer(void) //const
+std::string const&	ClientConnection::getResponseBuffer(void) const
 {
 	return (_responseBuffer);
 }
@@ -132,7 +141,7 @@ void		ClientConnection::setSentBytes(size_t bytes)
 	this->_sentBytes = bytes;
 }
 
-void	ClientConnection::setResponseBuffer(const std::string buffer)
+void	ClientConnection::setResponseBuffer(const std::string& buffer)
 {
 	this->_responseBuffer = buffer;
 }
