@@ -56,7 +56,7 @@ void	RequestParse::handleRawRequest(const std::string& chunk, HttpRequest& reque
 							request.setRequestState(RequestState::Body);
 						request.clearBuffer();
 						i += 2;
-						break ;
+						continue ;
 					}
 					else
 					{
@@ -199,7 +199,19 @@ void	RequestParse::headers(const std::string& buffer, HttpRequest& request)
 		request.getMeta().setContentLength(size);
 	}
 	else if (key == "transfer-encoding")
+	{
+		std::string v = toLower(value);
+		if (v.find("chunked") != std::string::npos)
+			request.getMeta().setChunked(true);
+		else if (v != "identify")
+		{
+			request.setParseError(ResponseStatus::BadRequest);
+			request.setRequestState(RequestState::Complete);
+			Logger::instance().log(ERROR, "RequestParse::headers Unsupported transfer-encoding: " + value);
+			return ;
+		}
 		request.getMeta().setChunked(true);
+	}
 	else if (key == "connection")
 		request.getMeta().setConnectionClose(toLower(value) == "close");
 	else if (key == "expect")
@@ -313,8 +325,8 @@ std::string	RequestParse::extractQueryString(const std::string uri)
 	std::string::size_type query_pos = uri.find('?');
 	if (query_pos != std::string::npos)
 	{
-		return uri.substr(query_pos + 1);
-		uri.substr(0, query_pos);
+		//uri.substr(0, query_pos);
+		return (uri.substr(query_pos + 1));
 	}
 	else
 	{
