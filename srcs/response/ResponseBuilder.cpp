@@ -126,7 +126,9 @@ void	ResponseBuilder::build(HttpRequest& req, HttpResponse& res)
 		"[ResponseBuilder::build] [StatusCode ->" + toString(res.getStatusCode()) + "]");
 
 	setMinimumHeaders(res);
-	res.addHeader("connection", "keep-live");
+	res.setReasonPhrase(res.getStatusCode());
+	res.setVersion("1.1");
+	res.addHeader("connection", "keep-alive");
 
 	if (req.getMeta().shouldClose())
 	{
