@@ -90,10 +90,10 @@ char**	CgiHandler::buildEnvp(HttpRequest& request)
 		env.push_back(envKey + "=" + val);
 	}
 
-	for (size_t i = 0; i < env.size(); ++i)
-	{
-		std::cout << env[i] << std::endl;
-	}
+	// for (size_t i = 0; i < env.size(); ++i)
+	// {
+	// 	std::cout << env[i] << std::endl;
+	// }
 
 	// char **
 	char** envp = new char*[env.size() + 1];
@@ -195,25 +195,47 @@ void	CgiHandler::handle(HttpRequest &request, HttpResponse& response)
 	else
 	{
 		close(stdinPipe[0]);
-		checkForFailure(pid, response);
+		
 		close(stdoutPipe[1]);
 
 		// write body
-		std::string body = request.getBody();
+		const std::string& body = request.getBody();
 		if (!body.empty())
-			write(stdinPipe[1], body.c_str(), body.size());
+		{
+			const char* p = body.c_str();
+			size_t left = body.size();
+			while (left > 0)
+			{
+				ssize_t w = write(stdinPipe[1], p, left);
+				if (w < 0)
+				{
+					if (errno == EINTR)
+						continue ;
+					break ;
+				}
+				left -= (ssize_t)w;
+				p += w;
+			}
+		}
 		close(stdinPipe[1]); // EOF to CGI
 
 		// read output
-		char buffer[4096];
 		std::string output;
-		ssize_t bytesRead;
-		while ((bytesRead = read(stdoutPipe[0], buffer, sizeof(buffer))) > 0)
+		char buffer[4096];
+		while (true)
 		{
-			output.append(buffer, bytesRead);
+			ssize_t n = read(stdoutPipe[0], buffer, sizeof(buffer));
+			if (n > 0)
+			{
+				output.append(buffer, n);
+				continue ;
+			}
+			if (n < 0 && errno == EINTR)
+				continue ;
+			break ;
 		}
 		close(stdoutPipe[0]);
-
+		checkForFailure(pid, response);
 		ResponseBuilder::handleCgiOutput(response, output);
 	}
 	Logger::instance().log(DEBUG, "[Finished] CgiHandler::handle");
