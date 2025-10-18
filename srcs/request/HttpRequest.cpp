@@ -1,5 +1,6 @@
 #include "request/HttpRequest.hpp"
 #include <utils/Logger.hpp>
+#include <utils/string_utils.hpp>
 
 HttpRequest::HttpRequest()
 {
@@ -176,7 +177,9 @@ const std::string& HttpRequest::getHeader(const std::string& name) const
 {
 	std::map<std::string, std::string>::const_iterator c_it;
 
-	c_it = this->_headers.find(name);
+	std::string norm_name = toLower(name);
+
+	c_it = this->_headers.find(norm_name);
 	if (c_it != this->_headers.end())
 		return (c_it->second);
 	return (name);
