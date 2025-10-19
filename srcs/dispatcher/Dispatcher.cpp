@@ -18,7 +18,6 @@ void	Dispatcher::dispatch(ClientConnection& client)
 
 	Logger::instance().log(DEBUG,
 		"StaticPageHandler::handle Route -> " + toString(req.getRouteType()));
-	/* what I must put here ????? */
 	Logger::instance().log(DEBUG,
 		"Dispatcher::dispatch [Path -> " + req.getResolvedPath() + "]");
 

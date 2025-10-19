@@ -15,21 +15,17 @@ void AutoIndexHandler::handle(HttpRequest& req, HttpResponse& res)
     std::string resolvedPath = req.getResolvedPath();
     std::string uri = req.getUri();
 
-    // Garantir que a URI termine com barra
     if (uri.empty() || uri[uri.size() - 1] != '/')
         uri += '/';
 
-    // Ler o diretório
     DIR* dir = opendir(resolvedPath.c_str());
-    if (!dir)
-    {
+    if (!dir){
         res.setStatusCode(ResponseStatus::InternalServerError);
-        return;
-    }
+        return;}
 
     std::string content;
     struct dirent* entry;
-    
+
     while ((entry = readdir(dir)) != NULL)
     {
         std::string name = entry->d_name;
@@ -41,19 +37,15 @@ void AutoIndexHandler::handle(HttpRequest& req, HttpResponse& res)
         if (stat(fullPath.c_str(), &fileStat) != 0)
             continue;
 
-        // Determinar se é diretório ou arquivo
         bool isDir = S_ISDIR(fileStat.st_mode);
-
-        // Formatar a data de modificação (C++98 compatible)
         char dateBuf[100];
         time_t modTime = fileStat.st_mtime;
         struct tm* timeInfo = localtime(&modTime);
         strftime(dateBuf, sizeof(dateBuf), "%d-%b-%Y %H:%M", timeInfo);
 
-        // Formatar o tamanho
         std::string sizeStr = isDir ? "-" : formatSize(fileStat.st_size);
 
-        // Criar a linha da tabela
+        // Create line of the table
         content += "<tr>";
         content += "<td><a href=\"" + uri + name + (isDir ? "/" : "") + "\">" + name + (isDir ? "/" : "") + "</a></td>";
         content += "<td>" + std::string(dateBuf) + "</td>";
@@ -62,12 +54,13 @@ void AutoIndexHandler::handle(HttpRequest& req, HttpResponse& res)
     }
     closedir(dir);
 
-    // Carregar e substituir no template
-    std::string html = getTemplate();
-    
-    // Substituições manuais (C++98 compatible)
+    std::string html = getTemplate();    
     size_t pos;
     pos = html.find("{PATH}");
+    if (pos != std::string::npos){
+        html.replace(pos, 6, uri);}
+
+	pos = html.find("{PATH}");
     if (pos != std::string::npos)
         html.replace(pos, 6, uri);
         
@@ -183,7 +176,7 @@ std::string AutoIndexHandler::getTemplate()
            "    </tbody>\n"
            "</table>\n"
            "<hr>\n"
-           "<address>WebServ/1.0 {SERVER_INFO}</address>\n"
+           "<address>{SERVER_INFO}</address>\n"
            "</body>\n"
            "</html>";
 }
