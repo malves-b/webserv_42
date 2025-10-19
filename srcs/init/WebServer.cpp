@@ -18,10 +18,10 @@ void	WebServer::startServer(void)
 	{
 		ServerSocket	tmpSocket;
 
-		tmpSocket.startSocket(this->_config.getServerConfig()[i].getListenPort());
+		tmpSocket.startSocket(this->_config.getServerConfig()[i].getListenInterface().second);
 		tmpSocket.listenConnections(SOMAXCONN);
 
-		this->_SocketToServerIndex[tmpSocket.getFD()] = i; //index in config's ServerConfig vector
+		this->_socketToServerIndex[tmpSocket.getFD()] = i; //index in config's ServerConfig vector
 		this->_serverSocket.push_back(tmpSocket); //index in ServerSocket is equal to index in config's ServerConfig vector
 		this->addToPollFD(tmpSocket.getFD(), POLLIN); // monitor for incoming connections
 	}
@@ -35,9 +35,8 @@ void	WebServer::queueClientConnections(ServerSocket &socket)
 		int	newClientFD = newFDs[j];
 		if (_clients.find(newClientFD) == _clients.end()) //avoid adding duplicates
 		{
-			//std::cout << "queueClientConnections: fd: " << newFDs[j] << std::endl; //debug
 			//new client connection
-			size_t	serverIndex = this->_SocketToServerIndex[socket.getFD()]; // get config index for this listening socket
+			size_t	serverIndex = this->_socketToServerIndex[socket.getFD()]; // get config index for this listening socket
 			ServerConfig const& config = this->_config.getServerConfig()[serverIndex]; //get the config of this index
 			this->_clients.insert(std::make_pair(newClientFD, ClientConnection(newClientFD, config)));
 
@@ -181,8 +180,8 @@ void	WebServer::runServer(void)
 			if (this->_pollFDs[i].revents & POLLIN) //check if POLLIN bit is set, regardless of what other bits may also be set
 			{
 				//With multiple servers, you need to check if the fd matches any of your server sockets
-				std::map<int, size_t>::iterator it = _SocketToServerIndex.find(_pollFDs[i].fd);
-				if (it != _SocketToServerIndex.end()) // Ready on listening socket -> accept new client
+				std::map<int, size_t>::iterator it = _socketToServerIndex.find(_pollFDs[i].fd);
+				if (it != _socketToServerIndex.end()) // Ready on listening socket -> accept new client
 					this->queueClientConnections(this->_serverSocket[it->second]);
 				else
 					this->receiveRequest(i);
