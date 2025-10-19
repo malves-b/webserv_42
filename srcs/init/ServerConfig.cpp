@@ -1,6 +1,6 @@
 #include <init/ServerConfig.hpp>
 
-ServerConfig::ServerConfig() : root("/home/jose/webserv_42/webservinho_app"),
+ServerConfig::ServerConfig() : root("/home/malves-b/sgoinfre/webserv/webservinho_app"),
 	index("index.html"),
 	cgiPath("/home/jose/webserv_42/webservinho_app/cgi-bin"),
 	client_max_body_size(1048576),

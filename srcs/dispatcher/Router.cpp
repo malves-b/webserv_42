@@ -12,13 +12,10 @@ void	Router::computeResolvedPath(HttpRequest& request)
 	std::string resolvedPath;
 	std::string uri  = request.getUri();
 
-	std::string root = ServerConfig::instance().root; /* client.getServerConfig().getRoot(); // verificar com Mari */
-
-	// Garantir que root não termine com "/" duplicado
+	std::string root = ServerConfig::instance().root;
 	if (!root.empty() && root[root.size() - 1] == '/')
 		root.erase(root.size() - 1);
 	
-	// Se URI começar com '/', não adicionar extra '/', senão sim
 	if (!uri.empty() && uri[0] == '/')
 		resolvedPath = root + uri;
 	else
@@ -63,6 +60,10 @@ void	Router::resolve(HttpRequest& request, HttpResponse& response)
 		return ;
 	}
 
+	if (isAutoIndex(index, request))
+	{
+		request.setRouteType(RouteType::AutoIndex);
+		return;
 	if (isUpload("/upload", request)) //TODO config
 	{
 		request.setRouteType(RouteType::Upload);
@@ -112,26 +113,21 @@ bool Router::isStaticFile(const std::string& index, ResponseStatus::code& status
 	Logger::instance().log(DEBUG, "[Started] Router::isStaticFile");
 	std::string _resolvedPath = req.getResolvedPath();
 
-	// 1. Se for diretório, tentar adicionar index
 	struct stat s;
 
-	//check if the dir exists with stat
-	if (stat(_resolvedPath.c_str(), &s) == 0 && S_ISDIR(s.st_mode)) //it's a directory
+	if (stat(_resolvedPath.c_str(), &s) == 0 && S_ISDIR(s.st_mode))
 	{
 		Logger::instance().log(DEBUG, "Router::isStaticFile Its a directory");
-		// Adiciona barra se necessário
 		if (_resolvedPath[_resolvedPath.length() - 1] != '/')
 		{
 			_resolvedPath += '/';
 		}
 		_resolvedPath += index;
 		Logger::instance().log(DEBUG, "Router::isStaticFile Its a directory, path -> " + _resolvedPath);
-		// Re-testar com stat()
 		if (stat(_resolvedPath.c_str(), &s) != 0)
 			return (false);
 	}
 
-	// 2. Testar novamente se o arquivo existe e é legível
 	if (stat(_resolvedPath.c_str(), &s) == 0 && S_ISREG(s.st_mode))
 	{
 		Logger::instance().log(DEBUG, "Router::isStaticFile does it exist");
@@ -145,11 +141,11 @@ bool Router::isStaticFile(const std::string& index, ResponseStatus::code& status
 		else
 		{
 			status = ResponseStatus::Forbidden;
-			return (false); // sem permissão de leitura
+			return (false);
 		}
 	}
 	else
-		return (false); // não existe ou não é arquivo //try CGI
+		return (false);
 }
 
 bool	Router::isCgi(const std::string& cgiPath, const std::string resolvedPath, ResponseStatus::code& status)
@@ -159,18 +155,13 @@ bool	Router::isCgi(const std::string& cgiPath, const std::string resolvedPath, R
 
 	if (stat(_resolvedPath.c_str(), &s) != 0 || !S_ISREG(s.st_mode))
 	{
-		//status = ResponseStatus::NotFound;
 		return (false);
 	}
-
-	// Arquivo precisa ser executável
 	if (access(_resolvedPath.c_str(), X_OK) != 0)
 	{
 		status = ResponseStatus::Forbidden;
 		return (false);
 	}
-
-	// Verifica se está na pasta de CGI
 	if (_resolvedPath.find(cgiPath) != std::string::npos)
 		return (true);
 
@@ -179,9 +170,33 @@ bool	Router::isCgi(const std::string& cgiPath, const std::string resolvedPath, R
 	return (false);
 }
 
+/* */
+bool Router::isAutoIndex(const std::string& index, HttpRequest& req)
+{
+    std::string _resolvedPath = req.getResolvedPath();
+    struct stat s;
+
+    if (stat(_resolvedPath.c_str(), &s) == 0 && S_ISDIR(s.st_mode))
+    {
+        if (ServerConfig::instance().autoindex)
+        {
+            std::string indexPath = _resolvedPath;
+            if (indexPath[indexPath.length() - 1] != '/')
+                indexPath += '/';
+            indexPath += index;
+            
+            struct stat indexStat;
+            if (stat(indexPath.c_str(), &indexStat) != 0 || !S_ISREG(indexStat.st_mode)){
+                return true;}
+        }
+    }
+    return false;
+}
+
 bool	Router::hasCgiExtension(const std::string& path)
 {
-	const std::string cgiExtensions[] = {".cgi", ".pl", ".py"}; //pode ter outras, config???
+	const std::string cgiExtensions[] = {".cgi", ".pl", ".py"};
+
 	std::string::size_type dotPos = path.rfind('.');
 	if (dotPos != std::string::npos)
 	{

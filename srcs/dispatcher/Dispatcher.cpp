@@ -2,6 +2,7 @@
 #include <dispatcher/Router.hpp>
 #include <dispatcher/StaticPageHandler.hpp>
 #include <dispatcher/CgiHandler.hpp>
+#include <dispatcher/AutoIndexHandler.hpp>
 #include <dispatcher/UploadHandler.hpp>
 #include <response/ResponseBuilder.hpp>
 #include <utils/Logger.hpp>
@@ -34,6 +35,9 @@ void	Dispatcher::dispatch(ClientConnection& client)
 		case RouteType::CGI:
 			CgiHandler::handle(req, res);
 			break ;
+		case RouteType::AutoIndex:
+			AutoIndexHandler::handle(req, res);
+			break;
 		case RouteType::Error:
 		default:
 			break ;

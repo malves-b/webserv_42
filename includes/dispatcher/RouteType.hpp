@@ -7,6 +7,7 @@ struct RouteType
 	{
 		StaticPage = 0,
 		CGI,
+		AutoIndex,
 		Upload,
 		Redirect,
 		Error
