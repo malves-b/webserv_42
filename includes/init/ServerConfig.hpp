@@ -6,6 +6,10 @@
 #include <iostream>
 #include <sstream>
 #include <vector>
+#include <map>
+
+//webservinho
+#include <request/RequestMethod.hpp>
 
 //Just only for test
 class ServerConfig
@@ -20,12 +24,15 @@ class ServerConfig
 		const std::string			root;
 		const std::string			index;
 		const std::string			cgiPath;
-		const std::string			error_page_404; //TODO
-		std::vector<std::string>	allow_methods; //TODO
-		std::size_t					client_max_body_size; //TODO
+		std::map<int, std::string>	error_page; //TODO
+		std::vector<RequestMethod::Method>	allow_methods; //TODO
+		std::size_t					client_max_body_size;
 		//TODO return
 		bool						autoindex; //TODO matheus
-		const std::string			upload_path;  //TODO matheus
+		std::string			upload_path;  //TODO
+
+		const std::string			errorPage(int error);
+		std::string			redirect;
 };
 
 #endif //SERVER_CONFIG_HPP

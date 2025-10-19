@@ -17,6 +17,7 @@ SRCS = srcs/main.cpp \
 	$(DISPATCHER_PATH)/StaticPageHandler.cpp \
 	$(DISPATCHER_PATH)/CgiHandler.cpp \
 	$(DISPATCHER_PATH)/AutoIndexHandler.cpp \
+	$(DISPATCHER_PATH)/UploadHandler.cpp \
 	$(UTILS_PATH)/Logger.cpp \
 	$(INIT_PATH)/WebServer.cpp \
 	$(INIT_PATH)/ServerSocket.cpp \

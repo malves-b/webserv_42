@@ -1,4 +1,5 @@
 #include <iostream>
+#include <sys/wait.h>
 #include <dispatcher/CgiHandler.hpp>
 #include <utils/Logger.hpp>
 #include <response/ResponseBuilder.hpp>
@@ -89,10 +90,10 @@ char**	CgiHandler::buildEnvp(HttpRequest& request)
 		env.push_back(envKey + "=" + val);
 	}
 
-	for (size_t i = 0; i < env.size(); ++i)
-	{
-		std::cout << env[i] << std::endl;
-	}
+	// for (size_t i = 0; i < env.size(); ++i)
+	// {
+	// 	std::cout << env[i] << std::endl;
+	// }
 
 	// char **
 	char** envp = new char*[env.size() + 1];
@@ -127,6 +128,28 @@ void	CgiHandler::setupRedirection(int *stdinPipe, int *stdoutPipe)
 	close(stdoutPipe[1]);
 }
 
+void	CgiHandler::checkForFailure(pid_t pid, HttpResponse& response)
+{
+	int status;
+	waitpid(pid, &status, 0);
+
+	if (WIFEXITED(status))
+	{
+		int exitCode = WEXITSTATUS(status);
+		if (exitCode != 0)
+		{
+			Logger::instance().log(ERROR, "CgiHandler CGI exited with code " + toString(exitCode));
+			response.setStatusCode(ResponseStatus::InternalServerError);
+		}
+	}
+	else if (WIFSIGNALED(status))
+	{
+		int signal = WTERMSIG(status);
+		Logger::instance().log(ERROR, "CgiHandler CGI terminated by signal " + toString(signal));
+		response.setStatusCode(ResponseStatus::InternalServerError);
+	}
+}
+
 void	CgiHandler::handle(HttpRequest &request, HttpResponse& response)
 {
 	Logger::instance().log(DEBUG, "[Started] CgiHandler::handle");
@@ -155,36 +178,64 @@ void	CgiHandler::handle(HttpRequest &request, HttpResponse& response)
 		setupRedirection(stdinPipe, stdoutPipe);
 
 		std::string resolvedpath = request.getResolvedPath();
+		std::string rootDir = resolvedpath.substr(0, resolvedpath.find_last_of('/'));
 		char* argv[] = {&resolvedpath[0], NULL};
-
 		char **envp = buildEnvp(request);
+		if (chdir(rootDir.c_str()) == -1)
+		{
+			Logger::instance().log(ERROR, "CgiHandler::handle chdir() failed");
+			exit(EXIT_FAILURE);
+		}
 		execve(resolvedpath.c_str(), argv, envp);
 		freeEnvp(envp);
 
 		Logger::instance().log(ERROR, "CgiHandler::handle execve()");
-		exit(EXIT_FAILURE); //TODO como capturar esse erro
+		exit(EXIT_FAILURE);
 	}
 	else
 	{
 		close(stdinPipe[0]);
+		
 		close(stdoutPipe[1]);
 
 		// write body
-		std::string body = request.getBody();
+		const std::string& body = request.getBody();
 		if (!body.empty())
-			write(stdinPipe[1], body.c_str(), body.size());
+		{
+			const char* p = body.c_str();
+			size_t left = body.size();
+			while (left > 0)
+			{
+				ssize_t w = write(stdinPipe[1], p, left);
+				if (w < 0)
+				{
+					if (errno == EINTR)
+						continue ;
+					break ;
+				}
+				left -= (ssize_t)w;
+				p += w;
+			}
+		}
 		close(stdinPipe[1]); // EOF to CGI
 
 		// read output
-		char buffer[4096];
 		std::string output;
-		ssize_t bytesRead;
-		while ((bytesRead = read(stdoutPipe[0], buffer, sizeof(buffer))) > 0)
+		char buffer[4096];
+		while (true)
 		{
-			output.append(buffer, bytesRead);
+			ssize_t n = read(stdoutPipe[0], buffer, sizeof(buffer));
+			if (n > 0)
+			{
+				output.append(buffer, n);
+				continue ;
+			}
+			if (n < 0 && errno == EINTR)
+				continue ;
+			break ;
 		}
 		close(stdoutPipe[0]);
-
+		checkForFailure(pid, response);
 		ResponseBuilder::handleCgiOutput(response, output);
 	}
 	Logger::instance().log(DEBUG, "[Finished] CgiHandler::handle");

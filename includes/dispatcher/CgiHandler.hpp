@@ -28,6 +28,7 @@ class CgiHandler
 		static void			freeEnvp(char **envp);
 
 		static void			setupRedirection(int *stdinPipe, int *stdoutPipe);
+		static void			checkForFailure(pid_t pid, HttpResponse& response);
 		//static void			parentProcess(int *stdinPipe, int *stdoutPipe);
 	
 	public:
