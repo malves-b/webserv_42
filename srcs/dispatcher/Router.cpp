@@ -64,6 +64,7 @@ void	Router::resolve(HttpRequest& request, HttpResponse& response)
 	{
 		request.setRouteType(RouteType::AutoIndex);
 		return;
+	}
 	if (isUpload("/upload", request)) //TODO config
 	{
 		request.setRouteType(RouteType::Upload);
