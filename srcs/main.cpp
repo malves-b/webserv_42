@@ -4,6 +4,8 @@
 #include <utils/Logger.hpp>
 #include <iostream>
 #include <string>
+#include <utils/signals.hpp>/*NEW*/
+
 
 int	main(int argc, char** argv)
 {
@@ -12,6 +14,8 @@ int	main(int argc, char** argv)
 
 	ServerConfig::instance();
 	std::string	configFile;
+
+	std::signal(SIGINT, Signals::signalHandle); /* NEW*/
 
 	if (argc > 2)
 	{
@@ -24,6 +28,7 @@ int	main(int argc, char** argv)
 		configFile = argv[1];
 	try
 	{
+
 		WebServer	server;
 		server.startServer();
 		server.runServer();
