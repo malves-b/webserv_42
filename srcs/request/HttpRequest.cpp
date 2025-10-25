@@ -1,13 +1,16 @@
 #include "request/HttpRequest.hpp"
+#include <utils/Logger.hpp>
+#include <utils/string_utils.hpp>
 
 HttpRequest::HttpRequest()
 {
 	setMethod(RequestMethod::INVALID);
 	setParseError(ResponseStatus::OK);
-	getMeta().setContentLength(-1);
+	getMeta().setContentLength(0);
 	getMeta().setChunked(false);
 	getMeta().setConnectionClose(false);
 	getMeta().setExpectContinue(false);
+	getMeta().setRedirect(false);
 	setRequestState(RequestState::RequestLine);
 	setParsingChunkSize(true);
 	setExpectingChunkSeparator(false);
@@ -124,6 +127,7 @@ void	HttpRequest::reset(void)
 	this->_parsingChunkSize = false;
 	this->_expectingChunkSeparator = false;
 	this->_resolvedPath.clear();
+	Logger::instance().log(DEBUG, "HttpRequest::reset complete");
 }
 
 RequestMethod::Method	HttpRequest::getMethod(void) const
@@ -173,7 +177,9 @@ const std::string& HttpRequest::getHeader(const std::string& name) const
 {
 	std::map<std::string, std::string>::const_iterator c_it;
 
-	c_it = this->_headers.find(name);
+	std::string norm_name = toLower(name);
+
+	c_it = this->_headers.find(norm_name);
 	if (c_it != this->_headers.end())
 		return (c_it->second);
 	return (name);
@@ -247,3 +253,8 @@ const std::string	HttpRequest::getResolvedPath(void) const
 {
 	return (this->_resolvedPath);
 }
+
+// int	HttpRequest::getClientFD(void) const
+// {
+// 	return (this->_clientFD);
+// }

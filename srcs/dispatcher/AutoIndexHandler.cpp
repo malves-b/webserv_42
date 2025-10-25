@@ -70,10 +70,11 @@ void AutoIndexHandler::handle(HttpRequest& req, HttpResponse& res)
         
     pos = html.find("{SERVER_INFO}");
     if (pos != std::string::npos)
-        html.replace(pos, 13, "WebServ/1.0");
+        html.replace(pos, 13, "WebServinho/1.0");
 
     res.appendBody(html);
     res.addHeader("Content-Type", "text/html");
+    res.addHeader("Content-Length", toString(html.size()));
     res.setStatusCode(ResponseStatus::OK);
 
     Logger::instance().log(DEBUG, "[Finished] AutoIndexHandler::handle");

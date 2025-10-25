@@ -3,6 +3,7 @@
 #include <dispatcher/StaticPageHandler.hpp>
 #include <dispatcher/CgiHandler.hpp>
 #include <dispatcher/AutoIndexHandler.hpp>
+#include <dispatcher/UploadHandler.hpp>
 #include <response/ResponseBuilder.hpp>
 #include <utils/Logger.hpp>
 #include <utils/string_utils.hpp>
@@ -14,7 +15,7 @@ void	Dispatcher::dispatch(ClientConnection& client)
 	HttpRequest& req = client.getRequest();
 	HttpResponse& res = client.getResponse();
 
-	Router::resolve(req, res); //TODO query string
+	Router::resolve(req, res);
 
 	Logger::instance().log(DEBUG,
 		"StaticPageHandler::handle Route -> " + toString(req.getRouteType()));
@@ -23,6 +24,11 @@ void	Dispatcher::dispatch(ClientConnection& client)
 
 	switch (req.getRouteType())
 	{
+		case RouteType::Redirect:
+			break ;
+		case RouteType::Upload:
+			UploadHandler::handle(req, res);
+			break ;
 		case RouteType::StaticPage:
 			StaticPageHandler::handle(req, res);
 			break ;
@@ -39,8 +45,14 @@ void	Dispatcher::dispatch(ClientConnection& client)
 
 	ResponseBuilder::build(req, res);
 
+	if (req.getMeta().shouldClose()) //TODO
+		client._keepAlive = false;
+	else
+		client._keepAlive = true;
+
 	client.setResponseBuffer(ResponseBuilder::responseWriter(res)); //TODO
-	Logger::instance().log(DEBUG, "Dispatcher::dispatch response->" + client.getResponseBuffer());
+	if (res.getHeader("Content-Type") == "text/html")
+		Logger::instance().log(DEBUG, "Dispatcher::dispatch response->" + client.getResponseBuffer());
 	req.reset();
 	res.reset();
 	Logger::instance().log(DEBUG, "[Finished] Dispatcher::dispatch");

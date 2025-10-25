@@ -16,6 +16,7 @@ class Router
 		static bool	checkErrorStatus(ResponseStatus::code status,
 						HttpRequest& req,
 						HttpResponse& res);
+		static bool	isUpload(const std::string& uploadPath,	HttpRequest& req);
 		static bool	isStaticFile(const std::string& index,
 						ResponseStatus::code& status,
 						HttpRequest& req);
@@ -25,6 +26,7 @@ class Router
 		static bool isAutoIndex(const std::string& index,
 						HttpRequest& req);
 		static bool	hasCgiExtension(const std::string& path);
+		static bool	isRedirect(HttpRequest& req, HttpResponse& res);
 
 	public:
 		static void	resolve(HttpRequest& request, HttpResponse& response);

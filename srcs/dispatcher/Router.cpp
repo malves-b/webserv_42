@@ -53,15 +53,32 @@ void	Router::resolve(HttpRequest& request, HttpResponse& response)
 
 	Logger::instance().log(DEBUG,
 		"computeResolvedPath [Path -> " + request.getResolvedPath() + "]");
+	
+	if (isRedirect(request, response))
+	{
+		request.setRouteType(RouteType::Redirect);
+		return ;
+	}
 
 	if (isAutoIndex(index, request))
 	{
 		request.setRouteType(RouteType::AutoIndex);
 		return;
 	}
+	if (isUpload("/upload", request)) //TODO config
+	{
+		request.setRouteType(RouteType::Upload);
+		return ;
+	}
 	if (isStaticFile(index, status, request))
 	{
 		request.setRouteType(RouteType::StaticPage);
+		if (request.getMethod() != RequestMethod::GET) //Config ?
+		{
+			//TODO function
+			request.setRouteType(RouteType::Error);
+			response.setStatusCode(ResponseStatus::MethodNotAllowed);
+		}
 		return ;
 	}
 	if (checkErrorStatus(status, request, response))
@@ -76,6 +93,20 @@ void	Router::resolve(HttpRequest& request, HttpResponse& response)
 
 	request.setRouteType(RouteType::Error);
 	response.setStatusCode(ResponseStatus::NotFound);
+}
+
+bool	Router::isUpload(const std::string& uploadPath, HttpRequest& req)
+{
+	const std::string& uri = req.getUri();
+	Logger::instance().log(DEBUG, "Router::isUpload compare URI -> " + uri
+		+ " | upload path -> " + uploadPath);
+	if (uri == uploadPath &&
+		(req.getMethod() == RequestMethod::POST || req.getMethod() == RequestMethod::PUT) /* &&
+		!location.upload_path.empty() */)
+	{
+		return true;
+	}
+	return false;
 }
 
 bool Router::isStaticFile(const std::string& index, ResponseStatus::code& status, HttpRequest& req)
@@ -100,6 +131,7 @@ bool Router::isStaticFile(const std::string& index, ResponseStatus::code& status
 
 	if (stat(_resolvedPath.c_str(), &s) == 0 && S_ISREG(s.st_mode))
 	{
+		Logger::instance().log(DEBUG, "Router::isStaticFile does it exist");
 		if (access(_resolvedPath.c_str(), R_OK) == 0)
 		{
 			req.setResolvedPath(_resolvedPath);
@@ -176,6 +208,22 @@ bool	Router::hasCgiExtension(const std::string& path)
 			if (ext == cgiExtensions[i])
 				return (true);
 		}
+	}
+	return (false);
+}
+
+bool	Router::isRedirect(HttpRequest& req, HttpResponse& res)
+{
+	//TODO config complete
+	//for (vector redirect struct?)
+	Logger::instance().log(DEBUG, "Router::isRedirect -> " + req.getUri());
+	if (req.getUri() == "/static/contact.html")
+	{
+		req.getMeta().setRedirect(true);
+		res.setChunked(false);
+		res.addHeader("Location", ServerConfig::instance().redirect);
+		res.setStatusCode(ResponseStatus::TemporaryRedirect); //TODO config
+		return (true);
 	}
 	return (false);
 }
