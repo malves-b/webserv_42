@@ -16,10 +16,12 @@ WebServer::WebServer(void) : _serverSocket() {}
 WebServer::~WebServer(void)
 {
 	// std::cout << "Destroying WebServer..." << std::endl;
-	for (std::map<int, ClientConnection>::iterator it = _clients.begin(); it != _clients.end(); ++it)
-	{
-		close(it->first);
-	}
+	for (std::map<int, ClientConnection>::iterator it = _clients.begin(); it != _clients.end(); ++it) {
+        ::close(it->first);
+    }
+    _clients.clear();
+    _pollFDs.clear();
+
 }
 
 void	WebServer::startServer(void)
@@ -215,17 +217,12 @@ void	WebServer::runServer(void)
 		}
 		//Logger::instance().log(DEBUG, "WebServer::runServer finished loop");
 	}	
-	this->cleanup();
+	// this->cleanup();
 }
 
 
 /* --------------- TEST --------------- */
 
-void WebServer::cleanup()
-{
-    for (std::map<int, ClientConnection>::iterator it = _clients.begin(); it != _clients.end(); ++it) {
-        ::close(it->first);
-    }
-    _clients.clear();
-    _pollFDs.clear();
-}
+// void WebServer::cleanup()
+// {
+// }
