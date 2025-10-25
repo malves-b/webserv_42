@@ -1,4 +1,4 @@
-#include <init/ServerConfig.hpp>
+#include <config/ServerConfig.hpp>
 
 ServerConfig::ServerConfig() : root("/home/malves-b/sgoinfre/webserv/webservinho_app"),
 	index("index.html"),

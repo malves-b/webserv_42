@@ -7,7 +7,7 @@
 #include <utils/string_utils.hpp>
 #include <utils/Logger.hpp>
 #include <response/ResponseStatus.hpp>
-#include <init/ServerConfig.hpp>
+#include <config/ServerConfig.hpp>
 #include <utils/Logger.hpp>
 
 void	RequestParse::handleRawRequest(const std::string& chunk, HttpRequest& request)

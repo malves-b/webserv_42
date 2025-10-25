@@ -25,9 +25,9 @@ ClientConnection::~ClientConnection(void)
 		::close(this->_fd);
 }
 
-ClientConnection::ClientConnection() : _fd(-1), _sentBytes(0), _keepAlive(true) {} //double check
+// ClientConnection::ClientConnection() : _fd(-1), _sentBytes(0), _keepAlive(true) {} //double check
 
-ClientConnection::ClientConnection(ClientConnection const& src) : _fd(-1), _sentBytes(0), _keepAlive(src._keepAlive) {} //double check
+//ClientConnection::ClientConnection(ClientConnection const& src) : _fd(-1), _sentBytes(0), _keepAlive(src._keepAlive) {} //double check
 
 void ClientConnection::adoptFD(int fd)
 {

@@ -5,7 +5,7 @@
 #include <utils/string_utils.hpp>
 #include <dispatcher/UploadHandler.hpp>
 #include <response/ResponseStatus.hpp>
-#include <init/ServerConfig.hpp>
+#include <config/ServerConfig.hpp>
 
 static std::string	trim_copy(const std::string& s)
 {

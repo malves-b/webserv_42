@@ -4,7 +4,7 @@
 #include <unistd.h>
 #include <dispatcher/Router.hpp>
 #include <response/ResponseStatus.hpp>
-#include <init/ServerConfig.hpp>
+#include <config/ServerConfig.hpp>
 #include <utils/Logger.hpp>
 
 void	Router::computeResolvedPath(HttpRequest& request)

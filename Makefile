@@ -20,7 +20,7 @@ SRCS = srcs/main.cpp \
 	$(DISPATCHER_PATH)/AutoIndexHandler.cpp \
 	$(DISPATCHER_PATH)/UploadHandler.cpp \
 	$(UTILS_PATH)/Logger.cpp \
-  $(UTILS_PATH)/Signals.cpp \
+  	$(UTILS_PATH)/Signals.cpp \
 	$(INIT_PATH)/WebServer.cpp \
 	$(INIT_PATH)/ServerSocket.cpp \
 	$(INIT_PATH)/ClientConnection.cpp \

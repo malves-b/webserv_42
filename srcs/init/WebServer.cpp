@@ -51,7 +51,7 @@ void	WebServer::startServer(void)
 
 void	WebServer::queueClientConnections(ServerSocket &socket)
 {
-  std::vector<int>	newFDs = this->_serverSocket.acceptConnections(); //accepts the connections
+	std::vector<int>	newFDs = socket.acceptConnections(); //accepts the connections
 	for (size_t j = 0; j < newFDs.size(); j++)
 	{
 		int	newClientFD = newFDs[j];
@@ -309,20 +309,16 @@ void	WebServer::runServer(void)
 			}
 			if (re & POLLIN) //check if POLLIN bit is set, regardless of what other bits may also be set
 			{
-				if (this->_pollFDs[i].fd == this->_serverSocket.getFD()) // Ready on listening socket -> accept new client
-				{
-					Logger::instance().log(DEBUG, "WebServer::runServer -> queue");
-					//With multiple servers, you need to check if the fd matches any of your server sockets
-          std::map<int, size_t>::iterator it = _socketToServerIndex.find(_pollFDs[i].fd);
-          if (it != _socketToServerIndex.end()) // Ready on listening socket -> accept new client
-            this->queueClientConnections(this->_serverSocket[it->second]);
-					continue ; // ??
-				}
+				Logger::instance().log(DEBUG, "WebServer::runServer -> queue");
+				std::map<int, size_t>::iterator it = _socketToServerIndex.find(_pollFDs[i].fd);
+				if (it != _socketToServerIndex.end()) // Ready on listening socket -> accept new client
+					this->queueClientConnections(this->_serverSocket[it->second]);
 				else //If it wasn’t the server socket, then it must be one of the client sockets
 				{
 					Logger::instance().log(DEBUG, "WebServer::runServer -> receive");
 					this->receiveRequest(i);
 				}
+				continue ;
 			}
 			if (re & POLLOUT)
 				this->sendResponse(i);
