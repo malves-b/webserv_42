@@ -15,7 +15,7 @@ WebServer::WebServer(void) : _serverSocket() {}
 
 WebServer::~WebServer(void)
 {
-	std::cout << "Destroying WebServer..." << std::endl;
+	// std::cout << "Destroying WebServer..." << std::endl;
 	for (std::map<int, ClientConnection>::iterator it = _clients.begin(); it != _clients.end(); ++it)
 	{
 		close(it->first);
@@ -214,10 +214,7 @@ void	WebServer::runServer(void)
 			}
 		}
 		//Logger::instance().log(DEBUG, "WebServer::runServer finished loop");
-	}
-	Logger::instance().log(DEBUG, "[Finished] WebServer::runServer");
-	
-	/* NEW */
+	}	
 	this->cleanup();
 }
 
