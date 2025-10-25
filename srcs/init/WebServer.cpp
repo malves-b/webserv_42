@@ -11,9 +11,20 @@
 #include <iostream>
 #include <fcntl.h>
 
+#include <utils/signals.hpp> /*new*/
+
 WebServer::WebServer(void) : _serverSocket() {}
 
-WebServer::~WebServer(void){}
+WebServer::~WebServer(void)
+{
+	// std::cout << "Destroying WebServer..." << std::endl;
+	for (std::map<int, ClientConnection>::iterator it = _clients.begin(); it != _clients.end(); ++it) {
+        ::close(it->first);
+    }
+    _clients.clear();
+    _pollFDs.clear();
+
+}
 
 void	WebServer::startServer(void)
 {
@@ -206,7 +217,7 @@ void	WebServer::addToPollFD(int fd, short events)
 void	WebServer::runServer(void)
 {
 	Logger::instance().log(DEBUG, "[Started] WebServer::runServer");
-	while (true)
+	while (!Signals::shouldStop())
 	{
 		//Logger::instance().log(DEBUG, "WebServer::runServer started loop");
 		//int timeout = getPollTimeout(false); //update poll() timeout parameter accordingly to the presence of CGI process
@@ -216,6 +227,9 @@ void	WebServer::runServer(void)
 
 		if (ready == -1) //error
 		{
+			if (Signals::shouldStop())
+				break;
+			
 			Logger::instance().log(ERROR, "WebServer::runServer -> ready == -1");
 			if (errno == EINTR) //"harmless/temporary error"?
 				continue ;
@@ -264,6 +278,13 @@ void	WebServer::runServer(void)
 
 		}
 		//Logger::instance().log(DEBUG, "WebServer::runServer finished loop");
-	}
-	Logger::instance().log(DEBUG, "[Finished] WebServer::runServer");
+	}	
+	// this->cleanup();
 }
+
+
+/* --------------- TEST --------------- */
+
+// void WebServer::cleanup()
+// {
+// }

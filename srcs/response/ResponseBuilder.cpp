@@ -3,7 +3,9 @@
 #include <response/ResponseBuilder.hpp>
 #include <utils/Logger.hpp>
 #include <utils/string_utils.hpp>
+#include <utils/signals.hpp>
 #include <init/ServerConfig.hpp>
+
 
 const std::string	ResponseBuilder::fmtTimestamp(void)
 {
@@ -124,6 +126,9 @@ void	ResponseBuilder::build(HttpRequest& req, HttpResponse& res)
 	Logger::instance().log(DEBUG, "[Started] ResponseBuilder::build");
 	Logger::instance().log(DEBUG,
 		"[ResponseBuilder::build] [StatusCode ->" + toString(res.getStatusCode()) + "]");
+	
+	if (Signals::shouldStop())
+		res.setStatusCode(ResponseStatus::ServiceUnavailable);
 
 	setMinimumHeaders(res);
 	res.setReasonPhrase(res.getStatusCode());
