@@ -1,15 +1,17 @@
 #ifndef CLIENTCONNECTION_HPP
 # define CLIENTCONNECTION_HPP
 
+#include "request/HttpRequest.hpp"
+#include "response/HttpResponse.hpp"
 #include <string>
 #include <sys/types.h>
-#include <request/HttpRequest.hpp>
-#include <response/HttpResponse.hpp>
 
+class ServerConfig;
 class ClientConnection
 {
 	private:
 		int					_fd;
+		ServerConfig const*	_serverConfig;
 		std::string			_requestBuffer;
 		std::string			_responseBuffer;
 		size_t				_sentBytes;
@@ -20,8 +22,7 @@ class ClientConnection
 
 		ClientConnection&	operator=(ClientConnection const& rhs); //memmove?
 	public:
-		ClientConnection(int fd);
-		ClientConnection();
+		ClientConnection(int fd, ServerConfig const& config);
 		ClientConnection(ClientConnection const& src); //memmove?
 		~ClientConnection(void);
 
@@ -39,6 +40,7 @@ class ClientConnection
 		size_t const&		getSentBytes(void) const;
 		std::string const&	getRequestBuffer(void) const;
 		std::string const&	getResponseBuffer(void) const;
+		ServerConfig const&	getServerConfig(void) const;
 		void				setSentBytes(size_t bytes);
 		void				setResponseBuffer(const std::string& buffer);
 

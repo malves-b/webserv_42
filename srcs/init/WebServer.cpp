@@ -1,3 +1,4 @@
+// #include "init/WebServer.hpp"
 #include <init/WebServer.hpp>
 #include <dispatcher/Dispatcher.hpp>
 #include <utils/Logger.hpp>
@@ -10,51 +11,68 @@
 #include <stdexcept>
 #include <iostream>
 #include <fcntl.h>
+#include <utils/signals.hpp> 
 
-#include <utils/signals.hpp> /*new*/
+#include <sstream>
 
-WebServer::WebServer(void) : _serverSocket() {}
+WebServer::WebServer(Config const& config) : _config(config), _serverSocket() {}
 
-WebServer::~WebServer(void)
-{
-	// std::cout << "Destroying WebServer..." << std::endl;
-	for (std::map<int, ClientConnection>::iterator it = _clients.begin(); it != _clients.end(); ++it) {
-        ::close(it->first);
-    }
-    _clients.clear();
-    _pollFDs.clear();
-
-}
+WebServer::~WebServer(void){}
 
 void	WebServer::startServer(void)
 {
-	this->_serverSocket.startSocket("8080"); //this parameter will be from config file probably
-	this->_serverSocket.listenConnections(SOMAXCONN);
+	for (size_t i = 0; i < this->_config.getServerConfig().size(); i++)
+	{
+		ServerSocket	tmpSocket;
 
-	//start _pollFDs vector
-	// the server's listening socket is always the first [0], the client ones start from index 1
-	this->addToPollFD(this->_serverSocket.getFD(), POLLIN); // monitor for incoming connections
+		tmpSocket.startSocket(this->_config.getServerConfig()[i].getListenInterface().second);
+		tmpSocket.listenConnections(SOMAXCONN);
+
+		this->_socketToServerIndex[tmpSocket.getFD()] = i; //index in config's ServerConfig vector
+		this->_serverSocket.push_back(tmpSocket); //index in ServerSocket is equal to index in config's ServerConfig vector
+		this->addToPollFD(tmpSocket.getFD(), POLLIN); // monitor for incoming connections
+	}
 }
 
-void	WebServer::queueClientConnections(void)
-{
-	std::vector<int>	newFDs = this->_serverSocket.acceptConnections(); //accepts the connections
 
+// WebServer::WebServer(void) : _serverSocket() {}
+
+// WebServer::~WebServer(void)
+// {
+// 	// std::cout << "Destroying WebServer..." << std::endl;
+// 	for (std::map<int, ClientConnection>::iterator it = _clients.begin(); it != _clients.end(); ++it) {
+//         ::close(it->first);
+//     }
+//     _clients.clear();
+//     _pollFDs.clear();
+
+// }
+
+
+void	WebServer::queueClientConnections(ServerSocket &socket)
+{
+  std::vector<int>	newFDs = this->_serverSocket.acceptConnections(); //accepts the connections
 	for (size_t j = 0; j < newFDs.size(); j++)
 	{
 		int	newClientFD = newFDs[j];
-		int flags = fcntl(newClientFD, F_GETFL, 0);
-		if (flags != -1)
-			fcntl(newClientFD, F_SETFL, flags | O_NONBLOCK);
 		if (_clients.find(newClientFD) == _clients.end()) //avoid adding duplicates
 		{
-			//std::cout << "queueClientConnections: fd: " << newFDs[j] << std::endl; //debug
 			//new client connection
-			std::pair<std::map<int, ClientConnection>::iterator, bool> res =
-				_clients.insert(std::make_pair(newClientFD, ClientConnection()));
-			ClientConnection& conn = res.first->second;
-			//this->_clients.insert(std::make_pair(newClientFD, ClientConnection(newClientFD)));
-			conn.adoptFD(newClientFD);
+			size_t	serverIndex = this->_socketToServerIndex[socket.getFD()]; // get config index for this listening socket
+			ServerConfig const& config = this->_config.getServerConfig()[serverIndex]; //get the config of this index
+			this->_clients.insert(std::make_pair(newClientFD, ClientConnection(newClientFD, config)));
+//       int flags = fcntl(newClientFD, F_GETFL, 0);
+//       if (flags != -1)
+//         fcntl(newClientFD, F_SETFL, flags | O_NONBLOCK);
+//       if (_clients.find(newClientFD) == _clients.end()) //avoid adding duplicates
+//       {
+//         //std::cout << "queueClientConnections: fd: " << newFDs[j] << std::endl; //debug
+//         //new client connection
+//         std::pair<std::map<int, ClientConnection>::iterator, bool> res =
+//           _clients.insert(std::make_pair(newClientFD, ClientConnection()));
+//         ClientConnection& conn = res.first->second;
+//         //this->_clients.insert(std::make_pair(newClientFD, ClientConnection(newClientFD)));
+//         conn.adoptFD(newClientFD);
 
 			//Add to pollFDs //adds the client’s file descriptor to _pollFDs so poll() will also monitor it
 			this->addToPollFD(newClientFD, POLLIN);
@@ -66,52 +84,83 @@ void	WebServer::receiveRequest(size_t i)
 {
 	std::map<int, ClientConnection>::iterator	it;
 	it = this->_clients.find(this->_pollFDs[i].fd);
-	if (it != this->_clients.end()) //should I treat it in case of false?
+	if (it != this->_clients.end()) //found client
 	{
 		ClientConnection	&client = it->second;
-		// try
-		// {
-		ssize_t	bytesRecv = client.recvData();
+		try
+		{
+			ssize_t	bytesRecv = client.recvData();
 
-		Logger::instance().log(DEBUG, "WebServer::receiveRequest -> " + client.getRequest().getBuffer());
-		if (bytesRecv > 0 && client.completedRequest()) // >= 0?
-		{
-			Logger::instance().log(DEBUG, "WebServer::receiveRequest Request Buffer: " + client.getRequestBuffer());
-
-			Dispatcher::dispatch(client); //real oficial
-			this->_pollFDs[i].events = POLLOUT; //After receiving a full request, switch events to POLLOUT
-			client.setSentBytes(0);
+			if (bytesRecv > 0 && client.completedRequest())
+			{
+				std::cout << client.getRequestBuffer() << std::endl; //debug
+				client.setResponseBuffer(client.getResponseBuffer());
+				std::string response =
+					"HTTP/1.1 200 OK\r\n"
+					"Content-Type: text/plain\r\n"
+					"Content-Length: 12\r\n"
+					"\r\n"
+					"Hello World!"; //debug
+				client.setResponseBuffer(response);
+				client.clearBuffer(); //rename
+				this->_pollFDs[i].events = POLLOUT; //After receiving a full request, switch events to POLLOUT
+				this->_pollFDs[i].revents = 0;
+				client.setSentBytes(0);
+			}
+			else if (bytesRecv == 0)
+				this->removeClientConnection(client.getFD(), i);
 		}
-		else if (client.getRequest().getMeta().getExpectContinue())
+		catch (std::exception const& e)
 		{
-			Logger::instance().log(DEBUG, "WebServer::receiveRequest Expect True send");
-			//client.clearBuffer(); //rename
-			client.setResponseBuffer("HTTP/1.1 100 Continue\r\n\r\n");
-			this->_pollFDs[i].events = POLLOUT; //After receiving a full request, switch events to POLLOUT
-			client.setSentBytes(0);
-			client.getRequest().getMeta().setExpectContinue(false);
-		}
-		else if (bytesRecv == 0)
-		{
-			Logger::instance().log(DEBUG, "WebServer::receiveRequest removeClientConnection");
+			std::cerr << "error: " << e.what() << '\n';
 			this->removeClientConnection(client.getFD(), i);
-			return ;
 		}
-		else if (bytesRecv == -1)
-			return ;
-		else
-		{
-			Logger::instance().log(ERROR, "WebServer::sendResponse recv fatal error, closing fd=" + toString(client.getFD()));
-			this->removeClientConnection(client.getFD(), i);
-			return ;
-		}
+// 	if (it != this->_clients.end()) //should I treat it in case of false?
+// 	{
+// 		ClientConnection	&client = it->second;
+// 		// try
+// 		// {
+// 		ssize_t	bytesRecv = client.recvData();
 
-		// }
-		// catch (std::exception const& e)
-		// {
-		// 	std::cerr << "error: " << e.what() << '\n';
-		// 	this->removeClientConnection(client.getFD(), i);
-		// }
+// 		Logger::instance().log(DEBUG, "WebServer::receiveRequest -> " + client.getRequest().getBuffer());
+// 		if (bytesRecv > 0 && client.completedRequest()) // >= 0?
+// 		{
+// 			Logger::instance().log(DEBUG, "WebServer::receiveRequest Request Buffer: " + client.getRequestBuffer());
+
+// 			Dispatcher::dispatch(client); //real oficial
+// 			this->_pollFDs[i].events = POLLOUT; //After receiving a full request, switch events to POLLOUT
+// 			client.setSentBytes(0);
+// 		}
+// 		else if (client.getRequest().getMeta().getExpectContinue())
+// 		{
+// 			Logger::instance().log(DEBUG, "WebServer::receiveRequest Expect True send");
+// 			//client.clearBuffer(); //rename
+// 			client.setResponseBuffer("HTTP/1.1 100 Continue\r\n\r\n");
+// 			this->_pollFDs[i].events = POLLOUT; //After receiving a full request, switch events to POLLOUT
+// 			client.setSentBytes(0);
+// 			client.getRequest().getMeta().setExpectContinue(false);
+// 		}
+// 		else if (bytesRecv == 0)
+// 		{
+// 			Logger::instance().log(DEBUG, "WebServer::receiveRequest removeClientConnection");
+// 			this->removeClientConnection(client.getFD(), i);
+// 			return ;
+// 		}
+// 		else if (bytesRecv == -1)
+// 			return ;
+// 		else
+// 		{
+// 			Logger::instance().log(ERROR, "WebServer::sendResponse recv fatal error, closing fd=" + toString(client.getFD()));
+// 			this->removeClientConnection(client.getFD(), i);
+// 			return ;
+// 		}
+
+// 		// }
+// 		// catch (std::exception const& e)
+// 		// {
+// 		// 	std::cerr << "error: " << e.what() << '\n';
+// 		// 	this->removeClientConnection(client.getFD(), i);
+// 		// }
 	}
 }
 
@@ -165,7 +214,7 @@ void	WebServer::sendResponse(size_t i)
 			Logger::instance().log(DEBUG, "WebServer::sendResponse send would block, retry later");
 			return ;
 		}
-		if (bytesSent == -2)
+		if (bytesSent == -2) //REMOVE THIS
 		{
 			Logger::instance().log(ERROR, "WebServer::sendResponse send fatal error, closing fd=" + toString(client.getFD()));
 			this->removeClientConnection(it->second.getFD(), i);
@@ -258,13 +307,15 @@ void	WebServer::runServer(void)
 				}
 				continue ;
 			}
-
 			if (re & POLLIN) //check if POLLIN bit is set, regardless of what other bits may also be set
 			{
 				if (this->_pollFDs[i].fd == this->_serverSocket.getFD()) // Ready on listening socket -> accept new client
 				{
 					Logger::instance().log(DEBUG, "WebServer::runServer -> queue");
-					this->queueClientConnections();
+					//With multiple servers, you need to check if the fd matches any of your server sockets
+          std::map<int, size_t>::iterator it = _socketToServerIndex.find(_pollFDs[i].fd);
+          if (it != _socketToServerIndex.end()) // Ready on listening socket -> accept new client
+            this->queueClientConnections(this->_serverSocket[it->second]);
 					continue ; // ??
 				}
 				else //If it wasn’t the server socket, then it must be one of the client sockets
@@ -275,7 +326,6 @@ void	WebServer::runServer(void)
 			}
 			if (re & POLLOUT)
 				this->sendResponse(i);
-
 		}
 		//Logger::instance().log(DEBUG, "WebServer::runServer finished loop");
 	}	

@@ -1,3 +1,7 @@
+// #include "init/ClientConnection.hpp"
+// #include "request/RequestParse.hpp"
+// #include "response/ResponseBuilder.hpp" // response
+// #include "utils/Logger.hpp"
 #include <init/ClientConnection.hpp>
 #include <request/RequestParse.hpp>
 #include <response/ResponseBuilder.hpp> // response
@@ -11,21 +15,19 @@
 #include <stdexcept>
 #include <string>
 
-ClientConnection::ClientConnection(int fd) : _fd(fd), _sentBytes(0), _keepAlive(true) {}
+ClientConnection::ClientConnection(int fd, ServerConfig const& config) : _fd(fd), _serverConfig(&config), _sentBytes(0), _keepAlive(true) {}
 
-ClientConnection::ClientConnection() : _fd(-1), _sentBytes(0), _keepAlive(true) {}
-
-//ClientConnection::ClientConnection(ClientConnection const& src) : _fd(src._fd) {}
-
-ClientConnection::ClientConnection(ClientConnection const& src) : _fd(-1), _sentBytes(0), _keepAlive(src._keepAlive) {}
+ClientConnection::ClientConnection(ClientConnection const& src) : _fd(src._fd) {}
 
 ClientConnection::~ClientConnection(void)
 {
-	// if (this->_fd != -1)
-	// 	::close(this->_fd);
-	if (_fd >= 0)
+	if (this->_fd != -1)
 		::close(this->_fd);
 }
+
+ClientConnection::ClientConnection() : _fd(-1), _sentBytes(0), _keepAlive(true) {} //double check
+
+ClientConnection::ClientConnection(ClientConnection const& src) : _fd(-1), _sentBytes(0), _keepAlive(src._keepAlive) {} //double check
 
 void ClientConnection::adoptFD(int fd)
 {
@@ -37,31 +39,49 @@ void ClientConnection::adoptFD(int fd)
 ssize_t	ClientConnection::recvData(void)
 {
 	if (_fd == -1)
-	{
 		throw std::runtime_error("error: recvData: fd == -1");
-	}
 
-	char	buffer[4096];
+	char	buffer[1024]; //4096?
 	ssize_t	bytesRecv;
 
 	bytesRecv = ::recv(this->_fd, buffer, sizeof(buffer), 0);
-	Logger::instance().log(DEBUG, "ClientConnection::recvData bytesRecv -> " + toString(bytesRecv));
-	if (bytesRecv > 0)
+	if (bytesRecv == -1)
 	{
-		_requestBuffer.append(buffer, bytesRecv); //If the received data has embedded nulls (unlikely in HTTP headers but possible in POST bodies), you’ll not truncate this way
-		Logger::instance().log(DEBUG,
-			"ClientConnection::recvData appended " + toString(bytesRecv) +
-			" bytes, buffer total = " + toString(_requestBuffer.size()));
-		RequestParse::handleRawRequest(_requestBuffer, _httpRequest);
-		Logger::instance().log(DEBUG, "ClientConnection::recvData request -> " + _requestBuffer);
-		_requestBuffer.clear();
-		return (bytesRecv);
+		std::string	errorMsg(strerror(errno));
+		throw std::runtime_error("error: recv: " + errorMsg);
 	}
 	if (bytesRecv == 0)
 		return (0);
-	if (errno == EAGAIN || errno == EWOULDBLOCK)
-		return (-1);
-	return (-2);
+	_requestBuffer.append(buffer, bytesRecv); //If the received data has embedded nulls (unlikely in HTTP headers but possible in POST bodies), you’ll not truncate this way
+	//std::cout << _requestBuffer << std::endl; //debug
+	//RequestParse::handleRawRequest(buffer, _httpRequest); //not working properly
+	return (bytesRecv);
+// 	{
+// 		throw std::runtime_error("error: recvData: fd == -1");
+// 	}
+
+// 	char	buffer[4096];
+// 	ssize_t	bytesRecv;
+
+// 	bytesRecv = ::recv(this->_fd, buffer, sizeof(buffer), 0);
+// 	Logger::instance().log(DEBUG, "ClientConnection::recvData bytesRecv -> " + toString(bytesRecv));
+// 	if (bytesRecv > 0)
+// 	{
+// 		_requestBuffer.append(buffer, bytesRecv); //If the received data has embedded nulls (unlikely in HTTP headers but possible in POST bodies), you’ll not truncate this way
+// 		Logger::instance().log(DEBUG,
+// 			"ClientConnection::recvData appended " + toString(bytesRecv) +
+// 			" bytes, buffer total = " + toString(_requestBuffer.size()));
+// 		RequestParse::handleRawRequest(_requestBuffer, _httpRequest);
+// 		Logger::instance().log(DEBUG, "ClientConnection::recvData request -> " + _requestBuffer);
+// 		_requestBuffer.clear();
+// 		return (bytesRecv);
+// 	}
+// 	if (bytesRecv == 0)
+// 		return (0);
+// 	if (errno == EAGAIN || errno == EWOULDBLOCK)
+// 		return (-1);
+// 	return (-2);
+ 
 	// std::string	errorMsg(strerror(errno));
 	// throw std::runtime_error("error: recv: " + errorMsg);
 }
@@ -69,26 +89,39 @@ ssize_t	ClientConnection::recvData(void)
 ssize_t	ClientConnection::sendData(ClientConnection &client, size_t sent, size_t toSend)
 {
 	if (_fd == -1)
-	{
 		throw std::runtime_error("error: recvData: fd == -1");
-	}
 
 	ssize_t	bytesSent;
 
-	const std::string& resp = client.getResponseBuffer();
-	const char* p = resp.c_str() + sent;
-
-	//MSG_NOSIGNAL to avoid SIGPIPE
-	bytesSent = send(client.getFD(), p, toSend, MSG_NOSIGNAL);
+	bytesSent = send(client.getFD(), client.getResponseBuffer().c_str() + sent, toSend, 0);
+	if (bytesSent == -1)
+	{
+		std::string	errorMsg(strerror(errno));
+		throw	std::runtime_error("error: send: " + errorMsg);
+	}
 	if (bytesSent >= 0)
 		return (bytesSent);
+	return (bytesSent);
+// 	{
+// 		throw std::runtime_error("error: recvData: fd == -1");
+// 	}
 
-	if (errno == EAGAIN || errno == EWOULDBLOCK)
-		return (-1);
-	return (-2);
+// 	ssize_t	bytesSent;
 
-	// std::string	errorMsg(strerror(errno));
-	// throw	std::runtime_error("error: send: " + errorMsg);
+// 	const std::string& resp = client.getResponseBuffer();
+// 	const char* p = resp.c_str() + sent;
+
+// 	//MSG_NOSIGNAL to avoid SIGPIPE
+// 	bytesSent = send(client.getFD(), p, toSend, MSG_NOSIGNAL);
+// 	if (bytesSent >= 0)
+// 		return (bytesSent);
+
+// 	if (errno == EAGAIN || errno == EWOULDBLOCK)
+// 		return (-1);
+// 	return (-2);
+
+// 	// std::string	errorMsg(strerror(errno));
+// 	// throw	std::runtime_error("error: send: " + errorMsg);
 }
 
 bool	ClientConnection::completedRequest(void)
@@ -113,8 +146,8 @@ bool	ClientConnection::completedRequest(void)
 void	ClientConnection::clearBuffer(void) //rename
 {
 	this->_requestBuffer.clear();
-	this->_responseBuffer.clear();
 }
+
 
 int const&	ClientConnection::getFD(void) const
 {
@@ -133,7 +166,15 @@ std::string const&	ClientConnection::getRequestBuffer(void) const
 
 std::string const&	ClientConnection::getResponseBuffer(void) const
 {
+	// ResponseBuilder::run(this->_httpResponse, "");
+	// std::cout << "this->_httpResponse: >>>>>" << ResponseBuilder::responseToString(this->_httpResponse) << "<<<<<" <<std::endl;
+	// return (ResponseBuilder::responseToString(this->_httpResponse));
 	return (_responseBuffer);
+}
+
+ServerConfig const&	ClientConnection::getServerConfig(void) const
+{
+	return (*this->_serverConfig);
 }
 
 void		ClientConnection::setSentBytes(size_t bytes)

@@ -1,11 +1,16 @@
+// #include "init/WebServer.hpp"
+// #include "init/ServerSocket.hpp"
+// #include "config/ConfigParser.hpp"
+// #include "config/Config.hpp"
+// #include "utils/Logger.hpp"
 #include <init/WebServer.hpp>
 #include <init/ServerSocket.hpp>
-#include <init/ServerConfig.hpp>
+#include <config/ConfigParser.hpp>
+#include <config/Config.hpp>
 #include <utils/Logger.hpp>
 #include <iostream>
 #include <string>
 #include <utils/signals.hpp>/*NEW*/
-
 
 int	main(int argc, char** argv)
 {
@@ -23,13 +28,14 @@ int	main(int argc, char** argv)
 		return (1);
 	}
 	if (argc == 1)
-		configFile = "defautFile"; //create file and put it in the repository?
+		configFile = "default.conf"; //create file and put it in the repository?
 	if (argc == 2)
 		configFile = argv[1];
 	try
 	{
+		Config		config = ConfigParser::parseFile(configFile);
 
-		WebServer	server;
+		WebServer	server(config);
 		server.startServer();
 		server.runServer();
 	}

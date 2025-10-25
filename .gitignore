@@ -31,7 +31,12 @@
 *.out
 *.app
 webserv
+
+# Folders
 logs/
+objs/
+
+*.json
 
 srcs/response/ResponseBuilder.cpp
 .vscode/settings.json

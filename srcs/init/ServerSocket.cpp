@@ -12,6 +12,8 @@
 
 ServerSocket::ServerSocket(void) : _fd(-1) {}
 
+ServerSocket::ServerSocket(ServerSocket const& src) : _fd(src._fd) {} //memmove?
+
 ServerSocket::~ServerSocket(void)
 {
 	if (this->_fd != -1)
@@ -46,14 +48,18 @@ void	ServerSocket::startSocket(std::string const& port)
 		if (socketFD == -1)
 			continue ;
 		int	yes = 1;
+		//SO_REUSEADDR and process timing can make duplicate binds “sometimes work”. 
+		//if SO_REUSEADDR is set, the OS might temporarily allow 
+		//a bind to a port that appears free but is still “in use” in some edge cases 
+		//(e.g., TIME_WAIT sockets). This is outside our control
 		if (::setsockopt(socketFD, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) != 0)
 		{
 			::freeaddrinfo(servInfo);
-			::close(socketFD); //close here?
+			::close(socketFD);
 			std::string	errorMsg(strerror(errno));
 			throw std::runtime_error("error: setsockopt: " + errorMsg);
 		}
-		if (::bind(socketFD, tmp->ai_addr, tmp->ai_addrlen) == 0)
+		if (::bind(socketFD, tmp->ai_addr, tmp->ai_addrlen) == 0) //If two server configs specify the same port (say 8080 twice), your second bind() will fail with EADDRINUSE
 			break ; //sucess
 		::close(socketFD);
 		socketFD = -1;
