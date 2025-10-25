@@ -5,6 +5,10 @@
 #include <request/RequestMethod.hpp>
 #include <request/HttpRequest.hpp>
 
+const size_t MAX_URI = 2048;
+const size_t MAX_HEADER_LINE = 8192;
+const size_t MAX_TOTAL_HEADER_SIZE = 16384;
+
 class RequestParse
 {
 	private:
@@ -15,9 +19,13 @@ class RequestParse
 
 		static void	requestLine(const std::string& str, HttpRequest& request);
 		static void	method(const std::string& method, HttpRequest& request);
+		static void	uri(const std::string str, HttpRequest& request);
 		static void	headers(const std::string& header, HttpRequest& request);
 		static void	body(char c, HttpRequest& request);
 		static void	bodyChunked(char c, HttpRequest& request);
+		static std::string	extractQueryString(const std::string uri);
+		static bool	isGreaterThanMaxBodySize(std::size_t size);
+		static void	checkMethod(HttpRequest& request);
 
 	public:
 		static void	handleRawRequest(const std::string& rawRequest, HttpRequest& request);

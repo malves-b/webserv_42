@@ -4,7 +4,7 @@ RequestMeta::RequestMeta() {}
 
 RequestMeta::~RequestMeta() {}
 
-void	RequestMeta::setContentLength(int content_length)
+void	RequestMeta::setContentLength(std::size_t content_length)
 {
 	this->_contentLength = content_length;
 }
@@ -24,17 +24,34 @@ void	RequestMeta::setExpectContinue(bool expect_continue)
 	this->_expectContinue = expect_continue;
 }
 
+void	RequestMeta::setRedirect(bool redirect)
+{
+	this->_isRedirect = redirect;
+}
+
 void	RequestMeta::setHost(const std::string& host)
 {
 	this->_host = host;
 }
 
-int	RequestMeta::getContentLength(void) const { return (this->_contentLength); }
+void	RequestMeta::resetMeta(void)
+{
+	this->_contentLength = 0;
+	this->_chunked = false;
+	this->_connectionClose = false;
+	this->_expectContinue = false;
+	this->_isRedirect = false;
+	this->_host.clear();
+}
+
+std::size_t	RequestMeta::getContentLength(void) const { return (this->_contentLength); }
 
 bool	RequestMeta::isChunked(void) const { return (this->_chunked); }
 
 bool	RequestMeta::shouldClose(void) const { return (this->_connectionClose); }
 
 bool	RequestMeta::getExpectContinue(void) const { return (this->_expectContinue); }
+
+bool	RequestMeta::isRedirect(void) const { return (this->_isRedirect); }
 
 std::string	RequestMeta::getHost(void) const { return (this->_host); }

@@ -6,6 +6,7 @@
 #include "config/Config.hpp"
 #include <vector>
 #include <map>
+#include <utils/signals.hpp>
 
 class ClientConnection;
 class WebServer
@@ -32,7 +33,9 @@ class WebServer
 		void							sendResponse(std::size_t i);
 		void							removeClientConnection(int clientFD, size_t pollFDIndex);
 		//later
-		//void							stop(void); //cleanup
+
+
+		void							cleanup(void); //cleanup
 };
 
 #endif //WEBSERVER_HPP

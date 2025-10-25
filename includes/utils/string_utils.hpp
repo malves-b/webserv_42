@@ -43,6 +43,14 @@ inline std::string	toLower(const std::string& str)
 	return (result);
 }
 
+inline std::string	toUpper(const std::string& str)
+{
+	std::string result = str;
+	std::transform(result.begin(), result.end(), result.begin(),
+					(int(*)(int)) std::toupper);
+	return (result);
+}
+
 inline std::string	trim(const std::string& str)
 {
 	return (rTrim(lTrim(str)));

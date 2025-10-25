@@ -27,10 +27,10 @@ class Logger
 		const std::string	levelToString(LogLevel level) const;
 
 		Logger();
+		
+		
+		public:
 		~Logger();
-
-
-	public:
 		static Logger&	instance();
 		void	log(LogLevel level, const std::string& message);
 };

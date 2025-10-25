@@ -18,8 +18,8 @@ class HttpResponse
 		std::string							_body;
 		bool								_chunked; // transfer encoding
 
-		HttpResponse& operator=(const HttpResponse& rhs);
-		HttpResponse(const HttpResponse& rhs);
+		HttpResponse& operator=(const HttpResponse& rhs); //blocked
+		HttpResponse(const HttpResponse& rhs); //blocked
 
 		const std::string	statusCodeToString(const ResponseStatus::code& code);
 
@@ -35,6 +35,7 @@ class HttpResponse
 		void	appendBody(char c);
 		void	addHeader(const std::string& name, const std::string& value);
 		void	setChunked(bool chunked);
+		void	reset(void);
 
 		//getters
 		ResponseStatus::code		getStatusCode(void) const;

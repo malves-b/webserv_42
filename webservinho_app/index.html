@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>webservinho Test Site</title>
+  <style>
+    body { font-family: "Comic Sans MS", Arial, sans-serif; background: #b7d1f8; text-align: center; }
+    .wrapper { background: #fff; padding: 20px; margin: 20px auto; width: 800px; box-shadow: 0 0 0 4px #000, 0 0 0 8px #ff00ff; }
+    h1 { margin-top: 0; }
+    ul { list-style: none; padding: 0; }
+    li { margin: 6px 0; }
+    a { text-decoration: none; font-weight: bold; color: #000; }
+    .section { margin-top: 20px; border-top: 2px dashed #999; padding-top: 10px; }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <h1>Welcome to webservinho</h1>
+    <img src="/img/webservinho_logo.png" alt="webservinho logo" width="200">
+
+    <div class="section">
+      <h2>Static Pages</h2>
+      <ul>
+        <li><a href="/static/about.html">About</a></li>
+        <li><a href="/static/contact.html">Contact</a></li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>Error Pages</h2>
+      <ul>
+        <li><a href="/errors/404.html">Custom 404</a></li>
+        <li><a href="/errors/403.html">Custom 403</a></li>
+        <li><a href="/does-not-exist">Trigger 404</a></li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>Upload</h2>
+      <ul>
+        <li><a href="/static/upload.html">Upload file</a></li>
+        <li><a href="/uploads">Autoindex ON</a></li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>Python CGI</h2>
+      <ul>
+        <li><a href="/cgi-bin/hello.py">Hello</a></li>
+        <li><a href="/cgi-bin/echo.py?foo=bar&test=123">Echo (GET)</a></li>
+        <li><a href="/cgi-bin/form.py">Form (POST)</a></li>
+        <li><a href="/cgi-bin/methods.py">Methods test (GET/POST/DELETE)</a></li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>PHP CGI</h2>
+      <ul>
+        <li><a href="/php-bin/info.php">PHP Info</a></li>
+        <li><a href="/php-bin/echo.php?hello=world">Echo (GET/POST)</a></li>
+        <li><a href="/php-bin/methods.php">Methods test (GET/POST/DELETE)</a></li>
+      </ul>
+    </div>
+
+    <p style="margin-top:20px;font-size:12px;">&copy; 1996–2025 webservinho. Best viewed in Netscape 4.0 at 800x600.</p>
+  </div>
+</body>
+</html>
