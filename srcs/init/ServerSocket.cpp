@@ -12,6 +12,8 @@
 
 ServerSocket::ServerSocket(void) : _fd(-1) {}
 
+ServerSocket::ServerSocket(ServerSocket const& src) : _fd(src._fd) {} //memmove?
+
 ServerSocket::~ServerSocket(void)
 {
 	if (this->_fd != -1)

@@ -1,7 +1,7 @@
-#include <init/ClientConnection.hpp>
-#include <request/RequestParse.hpp>
-#include <response/ResponseBuilder.hpp> // response
-#include <utils/Logger.hpp>
+#include "init/ClientConnection.hpp"
+#include "request/RequestParse.hpp"
+#include "response/ResponseBuilder.hpp" // response
+#include "utils/Logger.hpp"
 #include <unistd.h> //close()
 #include <sys/socket.h>
 #include <fcntl.h>
@@ -26,9 +26,7 @@ ClientConnection::~ClientConnection(void)
 ssize_t	ClientConnection::recvData(void)
 {
 	if (_fd == -1)
-	{
 		throw std::runtime_error("error: recvData: fd == -1");
-	}
 
 	char	buffer[1024]; //4096?
 	ssize_t	bytesRecv;
@@ -39,23 +37,18 @@ ssize_t	ClientConnection::recvData(void)
 		std::string	errorMsg(strerror(errno));
 		throw std::runtime_error("error: recv: " + errorMsg);
 	}
-	if (bytesRecv > 0)
-	{
-		_requestBuffer.append(buffer, bytesRecv); //If the received data has embedded nulls (unlikely in HTTP headers but possible in POST bodies), you’ll not truncate this way
-		//std::cout << _requestBuffer << std::endl; //debug
-		//RequestParse::handleRawRequest(buffer, _httpRequest); //not working properly
-		return (bytesRecv);
-	}
 	if (bytesRecv == 0)
 		return (0);
+	_requestBuffer.append(buffer, bytesRecv); //If the received data has embedded nulls (unlikely in HTTP headers but possible in POST bodies), you’ll not truncate this way
+	//std::cout << _requestBuffer << std::endl; //debug
+	//RequestParse::handleRawRequest(buffer, _httpRequest); //not working properly
+	return (bytesRecv);
 }
 
 ssize_t	ClientConnection::sendData(ClientConnection &client, size_t sent, size_t toSend)
 {
 	if (_fd == -1)
-	{
 		throw std::runtime_error("error: recvData: fd == -1");
-	}
 
 	ssize_t	bytesSent;
 
@@ -67,6 +60,7 @@ ssize_t	ClientConnection::sendData(ClientConnection &client, size_t sent, size_t
 	}
 	if (bytesSent >= 0)
 		return (bytesSent);
+	return (bytesSent);
 }
 
 bool	ClientConnection::completedRequest(void)

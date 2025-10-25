@@ -1,10 +1,10 @@
 #ifndef CLIENTCONNECTION_HPP
 # define CLIENTCONNECTION_HPP
 
+#include "request/HttpRequest.hpp"
+#include "response/HttpResponse.hpp"
 #include <string>
 #include <sys/types.h>
-#include <request/HttpRequest.hpp>
-#include <response/HttpResponse.hpp>
 
 class ServerConfig;
 class ClientConnection

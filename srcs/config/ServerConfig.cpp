@@ -1,14 +1,24 @@
-#include <config/ServerConfig.hpp>
-#include <config/LocationConfig.hpp>
-#include <request/RequestMethod.hpp>
+#include "config/ServerConfig.hpp"
+#include "config/LocationConfig.hpp"
+#include "request/RequestMethod.hpp"
 
 ServerConfig::ServerConfig(void)
 {
-	this->_listenInterface = std::make_pair("127.0.0.1", "8000");
+	this->_listenInterface = std::make_pair("*", "8000");
 	this->_clientMaxBodysize = (1 * 1024 * 1024); // 1MB 
-	//this->_indexFiles = "index.html"; //not default
-	this->_autoIndex = false;
+	//this->_indexFiles = "index.html"; //not default, not mandatory
+	this->_autoindex = false;
 }
+
+ServerConfig::ServerConfig(ServerConfig const& src)
+	: _listenInterface(src._listenInterface),
+	  _root(src._root),
+	  _clientMaxBodysize(src._clientMaxBodysize),
+	  _errorPage(src._errorPage),
+	  _indexFile(src._indexFile),
+	  _autoindex(src._autoindex),
+	  _locations(src._locations)
+{}
 
 ServerConfig::~ServerConfig(void) {}
 
@@ -32,9 +42,9 @@ std::map<int, std::string> const&	ServerConfig::getErrorPage(void) const
 	return (this->_errorPage);
 }
 
-bool	ServerConfig::getAutoIndex(void) const
+bool	ServerConfig::getAutoindex(void) const
 {
-	return (this->_autoIndex);
+	return (this->_autoindex);
 }
 
 std::vector<LocationConfig> const&	ServerConfig::getLocationConfig(void) const
@@ -57,17 +67,22 @@ void	ServerConfig::setClientMaxBodySize(std::size_t newSize)
 	this->_clientMaxBodysize = newSize;
 }
 
-void	ServerConfig::setErrorPage(std::map<int, std::string> newErrorPage)
+void	ServerConfig::setErrorPage(int code, std::string path)
 {
-	this->_errorPage = newErrorPage;
+	this->_errorPage[code] = path;
 }
 
-void	ServerConfig::setAutoIndex(bool newAutoIndex)
+void	ServerConfig::setIndexFile(std::string newIndexFile)
 {
-	this->_autoIndex = newAutoIndex;
+	this->_indexFile = newIndexFile;
 }
 
-void	ServerConfig::setLocationConfig(std::vector<LocationConfig> newLocation)
+void	ServerConfig::setAutoindex(bool newAutoindex)
 {
-	this->_locations = newLocation;
+	this->_autoindex = newAutoindex;
+}
+
+void	ServerConfig::addLocation(LocationConfig& location)
+{
+	this->_locations.push_back(location);
 }
