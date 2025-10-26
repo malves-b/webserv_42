@@ -4,8 +4,6 @@
 #include <utils/Logger.hpp>
 #include <utils/string_utils.hpp>
 #include <utils/signals.hpp>
-#include <init/ServerConfig.hpp>
-
 
 const std::string	ResponseBuilder::fmtTimestamp(void)
 {
@@ -121,7 +119,7 @@ void	ResponseBuilder::handleCgiOutput(HttpResponse& response, const std::string&
 	response.addHeader("Content-Length", toString(bodyPart.size()));
 }
 
-void	ResponseBuilder::build(HttpRequest& req, HttpResponse& res)
+void	ResponseBuilder::build(HttpRequest& req, HttpResponse& res, ServerConfig const& config)
 {
 	Logger::instance().log(DEBUG, "[Started] ResponseBuilder::build");
 	Logger::instance().log(DEBUG,
@@ -147,7 +145,7 @@ void	ResponseBuilder::build(HttpRequest& req, HttpResponse& res)
 			res.addHeader("connection", "close");
 			req.getMeta().setConnectionClose(true);
 		}
-		if (!errorPageConfig(res))
+		if (!errorPageConfig(res, config))
 		{
 			std::string content = errorPageGenerator(res.getStatusCode());
 			handleStaticPageOutput(res, content, "text/html");
@@ -156,10 +154,16 @@ void	ResponseBuilder::build(HttpRequest& req, HttpResponse& res)
 	Logger::instance().log(DEBUG, "[Finished] ResponseBuilder::build");
 }
 
-bool	ResponseBuilder::errorPageConfig(HttpResponse& res)
+bool	ResponseBuilder::errorPageConfig(HttpResponse& res, ServerConfig const& config)
 {
 	int statusCode = static_cast<int>(res.getStatusCode());
-	const std::string path = ServerConfig::instance().errorPage(statusCode);
+	std::string path;
+	const std::map<int, std::string>& errorsPages = config.getErrorPage();
+	std::map<int, std::string>::const_iterator c_it;
+
+	c_it = errorsPages.find(statusCode);
+	if (c_it != errorsPages.end())
+		path = c_it->second;
 	if (path != "")
 	{
 		std::ifstream file(path.c_str(), std::ios::binary);

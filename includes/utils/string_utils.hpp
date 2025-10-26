@@ -91,4 +91,10 @@ inline std::string	toString(T value)
 	return oss.str();
 }
 
+inline bool	startsWith(const std::string& s, const std::string& prefix)
+{
+	return s.size() >= prefix.size() &&
+			std::equal(prefix.begin(), prefix.end(), s.begin());
+}
+
 #endif //STRING_UTILS_HPP

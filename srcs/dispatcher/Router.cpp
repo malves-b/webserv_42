@@ -7,12 +7,12 @@
 #include <config/ServerConfig.hpp>
 #include <utils/Logger.hpp>
 
-void	Router::computeResolvedPath(HttpRequest& request)
+void	Router::computeResolvedPath(HttpRequest& request, const std::string& rawRoot)
 {
 	std::string resolvedPath;
 	std::string uri  = request.getUri();
 
-	std::string root = ServerConfig::instance().root;
+	std::string root = rawRoot;
 	if (!root.empty() && root[root.size() - 1] == '/')
 		root.erase(root.size() - 1);
 	
@@ -35,11 +35,21 @@ bool	Router::checkErrorStatus(ResponseStatus::code status, HttpRequest& req, Htt
 	return (false);
 }
 
-void	Router::resolve(HttpRequest& request, HttpResponse& response)
+void	Router::resolve(HttpRequest& request, HttpResponse& response, ServerConfig const& config)
 {
+	const LocationConfig& location = config.mathLocation(request.getUri());
+	std::string index;
+	std::string root;
+	std::string cgiPath = location.getCgiPath();
 
-	std::string index = ServerConfig::instance().index;
-	std::string cgiPath = ServerConfig::instance().cgiPath;
+	if (location.getHasIndexFiles())
+		index = location.getIndex();
+
+	if (location.getHasRoot())
+		root = location.getRoot();
+	else
+		root = config.getRoot();
+
 	ResponseStatus::code status = ResponseStatus::OK;
 
 	if (request.getParseError() != ResponseStatus::OK)
@@ -49,23 +59,23 @@ void	Router::resolve(HttpRequest& request, HttpResponse& response)
 		return ;
 	}
 
-	computeResolvedPath(request);
+	computeResolvedPath(request, root);
 
 	Logger::instance().log(DEBUG,
 		"computeResolvedPath [Path -> " + request.getResolvedPath() + "]");
 	
-	if (isRedirect(request, response))
+	if (isRedirect(request, response, config))
 	{
 		request.setRouteType(RouteType::Redirect);
 		return ;
 	}
 
-	if (isAutoIndex(index, request))
+	if (isAutoIndex(index, request, config))
 	{
 		request.setRouteType(RouteType::AutoIndex);
-		return;
+		return ;
 	}
-	if (isUpload("/upload", request)) //TODO config
+	if (isUpload(request, config))
 	{
 		request.setRouteType(RouteType::Upload);
 		return ;
@@ -73,9 +83,8 @@ void	Router::resolve(HttpRequest& request, HttpResponse& response)
 	if (isStaticFile(index, status, request))
 	{
 		request.setRouteType(RouteType::StaticPage);
-		if (request.getMethod() != RequestMethod::GET) //Config ?
+		if (request.getMethod() != RequestMethod::GET)
 		{
-			//TODO function
 			request.setRouteType(RouteType::Error);
 			response.setStatusCode(ResponseStatus::MethodNotAllowed);
 		}
@@ -95,18 +104,19 @@ void	Router::resolve(HttpRequest& request, HttpResponse& response)
 	response.setStatusCode(ResponseStatus::NotFound);
 }
 
-bool	Router::isUpload(const std::string& uploadPath, HttpRequest& req)
+bool	Router::isUpload(HttpRequest& req, ServerConfig const& config)
 {
+	const LocationConfig& location = config.mathLocation(req.getUri());
+	if (!location.getUploadEnabled())
+		return (false);
+	std::string uploadPath = location.getUploadPath();
 	const std::string& uri = req.getUri();
 	Logger::instance().log(DEBUG, "Router::isUpload compare URI -> " + uri
 		+ " | upload path -> " + uploadPath);
 	if (uri == uploadPath &&
-		(req.getMethod() == RequestMethod::POST || req.getMethod() == RequestMethod::PUT) /* &&
-		!location.upload_path.empty() */)
-	{
-		return true;
-	}
-	return false;
+		(req.getMethod() == RequestMethod::POST || req.getMethod() == RequestMethod::PUT))
+		return (true);
+	return (false);
 }
 
 bool Router::isStaticFile(const std::string& index, ResponseStatus::code& status, HttpRequest& req)
@@ -171,27 +181,29 @@ bool	Router::isCgi(const std::string& cgiPath, const std::string resolvedPath, R
 	return (false);
 }
 
-/* */
-bool Router::isAutoIndex(const std::string& index, HttpRequest& req)
+bool	Router::isAutoIndex(const std::string& index, HttpRequest& req, ServerConfig const& config)
 {
-    std::string _resolvedPath = req.getResolvedPath();
-    struct stat s;
+	const LocationConfig& location = config.mathLocation(req.getUri());
+	if (!location.getHasAutoIndex())
+	{
+		if (!config.getAutoindex())
+			return (false);
+	}
+	std::string _resolvedPath = req.getResolvedPath();
+	struct stat s;
 
-    if (stat(_resolvedPath.c_str(), &s) == 0 && S_ISDIR(s.st_mode))
-    {
-        if (ServerConfig::instance().autoindex)
-        {
-            std::string indexPath = _resolvedPath;
-            if (indexPath[indexPath.length() - 1] != '/')
-                indexPath += '/';
-            indexPath += index;
-            
-            struct stat indexStat;
-            if (stat(indexPath.c_str(), &indexStat) != 0 || !S_ISREG(indexStat.st_mode)){
-                return true;}
-        }
-    }
-    return false;
+	if (stat(_resolvedPath.c_str(), &s) == 0 && S_ISDIR(s.st_mode))
+	{
+		std::string indexPath = _resolvedPath;
+		if (indexPath[indexPath.length() - 1] != '/')
+			indexPath += '/';
+		indexPath += index;
+		
+		struct stat indexStat;
+		if (stat(indexPath.c_str(), &indexStat) != 0 || !S_ISREG(indexStat.st_mode))
+			return (true);
+	}
+	return (false);
 }
 
 bool	Router::hasCgiExtension(const std::string& path)
@@ -212,17 +224,17 @@ bool	Router::hasCgiExtension(const std::string& path)
 	return (false);
 }
 
-bool	Router::isRedirect(HttpRequest& req, HttpResponse& res)
+bool	Router::isRedirect(HttpRequest& req, HttpResponse& res, ServerConfig const& config)
 {
-	//TODO config complete
-	//for (vector redirect struct?)
-	Logger::instance().log(DEBUG, "Router::isRedirect -> " + req.getUri());
-	if (req.getUri() == "/static/contact.html")
+	const LocationConfig& location = config.mathLocation(req.getUri());
+	const std::pair<int, std::string> redirect = location.getReturn();
+	if (redirect.first)
 	{
+		Logger::instance().log(DEBUG, "Router::isRedirect -> " + redirect.second);
 		req.getMeta().setRedirect(true);
 		res.setChunked(false);
-		res.addHeader("Location", ServerConfig::instance().redirect);
-		res.setStatusCode(ResponseStatus::TemporaryRedirect); //TODO config
+		res.addHeader("Location", redirect.second);
+		res.setStatusCode(static_cast<ResponseStatus::code>(redirect.first));
 		return (true);
 	}
 	return (false);

@@ -5,6 +5,8 @@
 #include <dispatcher/AutoIndexHandler.hpp>
 #include <dispatcher/UploadHandler.hpp>
 #include <response/ResponseBuilder.hpp>
+#include <config/LocationConfig.hpp>
+#include <config/ServerConfig.hpp>
 #include <utils/Logger.hpp>
 #include <utils/string_utils.hpp>
 
@@ -15,7 +17,10 @@ void	Dispatcher::dispatch(ClientConnection& client)
 	HttpRequest& req = client.getRequest();
 	HttpResponse& res = client.getResponse();
 
-	Router::resolve(req, res);
+	const ServerConfig& config = client.getServerConfig();
+	const LocationConfig& location = config.mathLocation(req.getUri());
+
+	Router::resolve(req, res, config);
 
 	Logger::instance().log(DEBUG,
 		"StaticPageHandler::handle Route -> " + toString(req.getRouteType()));
@@ -27,7 +32,7 @@ void	Dispatcher::dispatch(ClientConnection& client)
 		case RouteType::Redirect:
 			break ;
 		case RouteType::Upload:
-			UploadHandler::handle(req, res);
+			UploadHandler::handle(req, res, location.getUploadPath());
 			break ;
 		case RouteType::StaticPage:
 			StaticPageHandler::handle(req, res);
@@ -43,7 +48,7 @@ void	Dispatcher::dispatch(ClientConnection& client)
 			break ;
 	}
 
-	ResponseBuilder::build(req, res);
+	ResponseBuilder::build(req, res, config);
 
 	if (req.getMeta().shouldClose()) //TODO
 		client._keepAlive = false;

@@ -14,7 +14,7 @@ class UploadHandler
 		static void saveFile(const std::string& filename, const std::string& uploadPath, const std::string& data);
 
 	public:
-		static void handle(HttpRequest& request, HttpResponse& response);
+		static void handle(HttpRequest& request, HttpResponse& response, std::string uploadPath);
 };
 
 #endif //UPLOAD_HANDLER_HPP

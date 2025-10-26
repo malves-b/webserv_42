@@ -84,83 +84,83 @@ void	WebServer::receiveRequest(size_t i)
 {
 	std::map<int, ClientConnection>::iterator	it;
 	it = this->_clients.find(this->_pollFDs[i].fd);
-	if (it != this->_clients.end()) //found client
+	// if (it != this->_clients.end()) //found client
+	// {
+	// 	ClientConnection	&client = it->second;
+	// 	try
+	// 	{
+	// 		ssize_t	bytesRecv = client.recvData();
+
+	// 		if (bytesRecv > 0 && client.completedRequest())
+	// 		{
+	// 			std::cout << client.getRequestBuffer() << std::endl; //debug
+	// 			client.setResponseBuffer(client.getResponseBuffer());
+	// 			std::string response =
+	// 				"HTTP/1.1 200 OK\r\n"
+	// 				"Content-Type: text/plain\r\n"
+	// 				"Content-Length: 12\r\n"
+	// 				"\r\n"
+	// 				"Hello World!"; //debug
+	// 			client.setResponseBuffer(response);
+	// 			client.clearBuffer(); //rename
+	// 			this->_pollFDs[i].events = POLLOUT; //After receiving a full request, switch events to POLLOUT
+	// 			this->_pollFDs[i].revents = 0;
+	// 			client.setSentBytes(0);
+	// 		}
+	// 		else if (bytesRecv == 0)
+	// 			this->removeClientConnection(client.getFD(), i);
+	// 	}
+	// 	catch (std::exception const& e)
+	// 	{
+	// 		std::cerr << "error: " << e.what() << '\n';
+	// 		this->removeClientConnection(client.getFD(), i);
+	// 	}
+	if (it != this->_clients.end()) //should I treat it in case of false?
 	{
 		ClientConnection	&client = it->second;
-		try
-		{
-			ssize_t	bytesRecv = client.recvData();
+		// try
+		// {
+		ssize_t	bytesRecv = client.recvData();
 
-			if (bytesRecv > 0 && client.completedRequest())
-			{
-				std::cout << client.getRequestBuffer() << std::endl; //debug
-				client.setResponseBuffer(client.getResponseBuffer());
-				std::string response =
-					"HTTP/1.1 200 OK\r\n"
-					"Content-Type: text/plain\r\n"
-					"Content-Length: 12\r\n"
-					"\r\n"
-					"Hello World!"; //debug
-				client.setResponseBuffer(response);
-				client.clearBuffer(); //rename
-				this->_pollFDs[i].events = POLLOUT; //After receiving a full request, switch events to POLLOUT
-				this->_pollFDs[i].revents = 0;
-				client.setSentBytes(0);
-			}
-			else if (bytesRecv == 0)
-				this->removeClientConnection(client.getFD(), i);
-		}
-		catch (std::exception const& e)
+		Logger::instance().log(DEBUG, "WebServer::receiveRequest -> " + client.getRequest().getBuffer());
+		if (bytesRecv > 0 && client.completedRequest()) // >= 0?
 		{
-			std::cerr << "error: " << e.what() << '\n';
+			Logger::instance().log(DEBUG, "WebServer::receiveRequest Request Buffer: " + client.getRequestBuffer());
+
+			Dispatcher::dispatch(client); //real oficial
+			this->_pollFDs[i].events = POLLOUT; //After receiving a full request, switch events to POLLOUT
+			client.setSentBytes(0);
+		}
+		else if (client.getRequest().getMeta().getExpectContinue())
+		{
+			Logger::instance().log(DEBUG, "WebServer::receiveRequest Expect True send");
+			//client.clearBuffer(); //rename
+			client.setResponseBuffer("HTTP/1.1 100 Continue\r\n\r\n");
+			this->_pollFDs[i].events = POLLOUT; //After receiving a full request, switch events to POLLOUT
+			client.setSentBytes(0);
+			client.getRequest().getMeta().setExpectContinue(false);
+		}
+		else if (bytesRecv == 0)
+		{
+			Logger::instance().log(DEBUG, "WebServer::receiveRequest removeClientConnection");
 			this->removeClientConnection(client.getFD(), i);
+			return ;
 		}
-// 	if (it != this->_clients.end()) //should I treat it in case of false?
-// 	{
-// 		ClientConnection	&client = it->second;
-// 		// try
-// 		// {
-// 		ssize_t	bytesRecv = client.recvData();
+		else if (bytesRecv == -1)
+			return ;
+		else
+		{
+			Logger::instance().log(ERROR, "WebServer::sendResponse recv fatal error, closing fd=" + toString(client.getFD()));
+			this->removeClientConnection(client.getFD(), i);
+			return ;
+		}
 
-// 		Logger::instance().log(DEBUG, "WebServer::receiveRequest -> " + client.getRequest().getBuffer());
-// 		if (bytesRecv > 0 && client.completedRequest()) // >= 0?
-// 		{
-// 			Logger::instance().log(DEBUG, "WebServer::receiveRequest Request Buffer: " + client.getRequestBuffer());
-
-// 			Dispatcher::dispatch(client); //real oficial
-// 			this->_pollFDs[i].events = POLLOUT; //After receiving a full request, switch events to POLLOUT
-// 			client.setSentBytes(0);
-// 		}
-// 		else if (client.getRequest().getMeta().getExpectContinue())
-// 		{
-// 			Logger::instance().log(DEBUG, "WebServer::receiveRequest Expect True send");
-// 			//client.clearBuffer(); //rename
-// 			client.setResponseBuffer("HTTP/1.1 100 Continue\r\n\r\n");
-// 			this->_pollFDs[i].events = POLLOUT; //After receiving a full request, switch events to POLLOUT
-// 			client.setSentBytes(0);
-// 			client.getRequest().getMeta().setExpectContinue(false);
-// 		}
-// 		else if (bytesRecv == 0)
-// 		{
-// 			Logger::instance().log(DEBUG, "WebServer::receiveRequest removeClientConnection");
-// 			this->removeClientConnection(client.getFD(), i);
-// 			return ;
-// 		}
-// 		else if (bytesRecv == -1)
-// 			return ;
-// 		else
-// 		{
-// 			Logger::instance().log(ERROR, "WebServer::sendResponse recv fatal error, closing fd=" + toString(client.getFD()));
-// 			this->removeClientConnection(client.getFD(), i);
-// 			return ;
-// 		}
-
-// 		// }
-// 		// catch (std::exception const& e)
-// 		// {
-// 		// 	std::cerr << "error: " << e.what() << '\n';
-// 		// 	this->removeClientConnection(client.getFD(), i);
-// 		// }
+		// }
+		// catch (std::exception const& e)
+		// {
+		// 	std::cerr << "error: " << e.what() << '\n';
+		// 	this->removeClientConnection(client.getFD(), i);
+		// }
 	}
 }
 

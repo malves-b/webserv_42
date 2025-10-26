@@ -20,11 +20,10 @@ static std::string	trim_copy(const std::string& s)
 	return (s.substr(a, b - a));
 }
 
-void	UploadHandler::handle(HttpRequest& request, HttpResponse& response)
+void	UploadHandler::handle(HttpRequest& request, HttpResponse& response, std::string uploadPath)
 {
 	Logger::instance().log(DEBUG, "[Started] UploadHandler::handle");
 
-	const std::string	uploadPath = ServerConfig::instance().upload_path;
 	const std::string	contentType = request.getHeader("Content-Type");
 
 	Logger::instance().log(DEBUG, "UploadHandler: Content-Type raw=[" + contentType + "]");

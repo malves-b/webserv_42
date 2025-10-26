@@ -5,6 +5,8 @@
 #include <response/HttpResponse.hpp>
 #include <response/ResponseStatus.hpp>
 #include <init/ClientConnection.hpp>
+#include <config/ServerConfig.hpp>
+#include <config/LocationConfig.hpp>
 
 class ResponseBuilder
 {
@@ -17,12 +19,12 @@ class ResponseBuilder
 		static const std::string	fmtTimestamp(void);
 		static void					setMinimumHeaders(HttpResponse& response);
 		static std::string			errorPageGenerator(ResponseStatus::code code);
-		static bool					errorPageConfig(HttpResponse& res);
+		static bool					errorPageConfig(HttpResponse& res, ServerConfig const& config);
 		static bool					shouldCloseConnection(int statusCode);
 
 	public:
 		static const std::string	responseWriter(HttpResponse& response);
-		static void					build(HttpRequest& req, HttpResponse& res);
+		static void					build(HttpRequest& req, HttpResponse& res, ServerConfig const& config);
 		static void					handleCgiOutput(HttpResponse& response, const std::string& output);
 		static void					handleStaticPageOutput(HttpResponse& response,
 										const std::string output,

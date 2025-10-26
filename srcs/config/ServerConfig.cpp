@@ -1,6 +1,7 @@
-#include "config/ServerConfig.hpp"
-#include "config/LocationConfig.hpp"
-#include "request/RequestMethod.hpp"
+#include <config/ServerConfig.hpp>
+#include <config/LocationConfig.hpp>
+#include <request/RequestMethod.hpp>
+#include <utils/string_utils.hpp>
 
 ServerConfig::ServerConfig(void)
 {
@@ -85,4 +86,27 @@ void	ServerConfig::setAutoindex(bool newAutoindex)
 void	ServerConfig::addLocation(LocationConfig& location)
 {
 	this->_locations.push_back(location);
+}
+
+const LocationConfig&	ServerConfig::mathLocation(const std::string& uri) const
+{
+	const LocationConfig* best = &_locations[0];
+	size_t bestLen = 0;
+
+	for (size_t i = 0; i < _locations.size(); ++i)
+	{
+		const std::string& locPath = _locations[i].getPath();
+
+		//Match
+		if (locPath == uri)
+			return _locations[i];
+
+		//Fallback
+		if (startsWith(uri, locPath) && locPath.size() > bestLen)
+		{
+			best = &_locations[i];
+			bestLen = locPath.size();
+		}
+	}
+	return (*best);
 }

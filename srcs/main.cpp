@@ -18,7 +18,6 @@ int	main(int argc, char** argv)
 	Logger::instance();
 	Logger::instance().log(INFO, "Webservinho Started");
 
-	//ServerConfig::instance();
 	std::string	configFile;
 
 	std::signal(SIGINT, Signals::signalHandle); /* NEW*/

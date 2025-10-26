@@ -2,15 +2,16 @@
 #include <exception>
 #include <cstdlib>
 #include <vector>
-#include <request/RequestParse.hpp>
-#include <request/RequestMethod.hpp>
 #include <utils/string_utils.hpp>
 #include <utils/Logger.hpp>
-#include <response/ResponseStatus.hpp>
-#include <config/ServerConfig.hpp>
 #include <utils/Logger.hpp>
+#include <response/ResponseStatus.hpp>
+#include <request/RequestParse.hpp>
+#include <request/RequestMethod.hpp>
+#include <config/ServerConfig.hpp>
+#include <config/LocationConfig.hpp>
 
-void	RequestParse::handleRawRequest(const std::string& chunk, HttpRequest& request)
+void	RequestParse::handleRawRequest(const std::string& chunk, HttpRequest& request, ServerConfig const& config)
 {
 	request.appendRaw(chunk);
 	std::string& rawRequest = request.getRaw();
@@ -38,7 +39,7 @@ void	RequestParse::handleRawRequest(const std::string& chunk, HttpRequest& reque
 				if (request.getState() == RequestState::RequestLine)
 				{
 					if (!buffer.empty())
-						requestLine(buffer, request);
+						requestLine(buffer, request, config);
 					if (request.getParseError() != ResponseStatus::OK)
 					{
 						request.setRequestState(RequestState::Complete);
@@ -60,7 +61,7 @@ void	RequestParse::handleRawRequest(const std::string& chunk, HttpRequest& reque
 					}
 					else
 					{
-						headers(buffer, request);
+						headers(buffer, request, config.getClientMaxBodySize());
 					}
 				}
 				request.clearBuffer();
@@ -73,7 +74,7 @@ void	RequestParse::handleRawRequest(const std::string& chunk, HttpRequest& reque
 		}
 		if (request.getState() == RequestState::Body)
 		{
-			body(rawRequest[i], request);
+			body(rawRequest[i], request, config.getClientMaxBodySize());
 			++i;
 		}
 	}
@@ -83,7 +84,7 @@ void	RequestParse::handleRawRequest(const std::string& chunk, HttpRequest& reque
 		"Consumed i=" + toString(i) + " of raw=" + toString(rawRequest.size()));
 }
 
-void	RequestParse::requestLine(const std::string& buffer, HttpRequest& request)
+void	RequestParse::requestLine(const std::string& buffer, HttpRequest& request, ServerConfig const& config)
 {
 	Logger::instance().log(DEBUG, "[Started] RequestParse::requestLine");
 	const std::vector<std::string> tokens = split(buffer, " ");
@@ -94,8 +95,8 @@ void	RequestParse::requestLine(const std::string& buffer, HttpRequest& request)
 		return ;
 	}
 
-	method(tokens[0], request);
 	uri(tokens[1], request);
+	method(tokens[0], request, config);
 
 	const std::string version = tokens[2];
 	if (version.size() < 8 || version.substr(0, 5) != "HTTP/"
@@ -123,9 +124,8 @@ void	RequestParse::requestLine(const std::string& buffer, HttpRequest& request)
 	Logger::instance().log(DEBUG, "[Finished] RequestParse::requestLine");
 }
 
-void	RequestParse::method(const std::string& method, HttpRequest& request)
+void	RequestParse::method(const std::string& method, HttpRequest& request, ServerConfig const& config)
 {
-	//TODO config
 	if (method == "GET")
 		request.setMethod(RequestMethod::GET);
 	else if (method == "POST")
@@ -139,7 +139,7 @@ void	RequestParse::method(const std::string& method, HttpRequest& request)
 		request.setMethod(RequestMethod::INVALID);
 		request.setParseError(ResponseStatus::MethodNotAllowed);
 	}
-	checkMethod(request);
+	checkMethod(request, config);
 }
 
 void	RequestParse::uri(const std::string str, HttpRequest& request)
@@ -159,9 +159,10 @@ void	RequestParse::uri(const std::string str, HttpRequest& request)
 	request.setQueryString(extractQueryString(str));
 }
 
-void	RequestParse::headers(const std::string& buffer, HttpRequest& request)
+void	RequestParse::headers(const std::string& buffer, HttpRequest& request, std::size_t maxBodySize)
 {
 	Logger::instance().log(DEBUG, "[Started] RequestParse::headers");
+
 	std::string::size_type pos = buffer.find(":");
 
 	if (pos == std::string::npos)
@@ -189,7 +190,7 @@ void	RequestParse::headers(const std::string& buffer, HttpRequest& request)
 	else if (key == "content-length")
 	{
 		long size = std::atol(value.c_str());
-		if (isGreaterThanMaxBodySize(size))
+		if (isGreaterThanMaxBodySize(size, maxBodySize))
 		{
 			request.setParseError(ResponseStatus::PayloadTooLarge);
 			request.setRequestState(RequestState::Complete);
@@ -233,7 +234,7 @@ void	RequestParse::headers(const std::string& buffer, HttpRequest& request)
 	Logger::instance().log(DEBUG, "[Finished] RequestParse::headers");
 }
 
-void	RequestParse::body(char c, HttpRequest& request)
+void	RequestParse::body(char c, HttpRequest& request, std::size_t maxBodySize)
 {
 	if (!request.getMeta().isChunked())
 	{
@@ -249,16 +250,16 @@ void	RequestParse::body(char c, HttpRequest& request)
 	}
 	else
 	{
-		bodyChunked(c, request);
+		bodyChunked(c, request, maxBodySize);
 	}
 }
 
-void	RequestParse::bodyChunked(char c, HttpRequest& request)
+void	RequestParse::bodyChunked(char c, HttpRequest& request, std::size_t maxBodySize)
 {
 	std::string& buffer = request.getBuffer();
 	std::string& chunkBuffer = request.getChunkBuffer();
 
-	if (isGreaterThanMaxBodySize(request.getCurrentChunkSize()))
+	if (isGreaterThanMaxBodySize(request.getCurrentChunkSize(), maxBodySize))
 	{
 		request.setParseError(ResponseStatus::PayloadTooLarge);
 		request.setRequestState(RequestState::Complete);
@@ -334,28 +335,27 @@ std::string	RequestParse::extractQueryString(const std::string uri)
 	}
 }
 
-bool	RequestParse::isGreaterThanMaxBodySize(std::size_t size)
+bool	RequestParse::isGreaterThanMaxBodySize(std::size_t size, std::size_t maxBodySize)
 {
-	if (size > ServerConfig::instance().client_max_body_size)
+	if (size > maxBodySize)
 		return (true);
 	return (false);
 }
 
-void	RequestParse::checkMethod(HttpRequest& request)
+void	RequestParse::checkMethod(HttpRequest& request, ServerConfig const& config)
 {
 	if (request.getMethod() == RequestMethod::INVALID)
 		return ;
-	size_t size = ServerConfig::instance().allow_methods.size();
+
+	const LocationConfig& location = config.mathLocation(request.getUri());
+	std::vector<RequestMethod::Method> methods = location.getMethods();
+
+	size_t size = methods.size();
 	RequestMethod::Method m = request.getMethod();
 	for (size_t i = 0; i < size; ++i)
 	{
-		// Logger::instance().log(DEBUG, "RequestParse::checkMethod -> "
-		// 		+ toString(ServerConfig::instance().allow_methods[i]));
-		if (ServerConfig::instance().allow_methods[i] == m)
+		if (methods[i] == m)
 			return ;
 	}
 	request.setParseError(ResponseStatus::MethodNotAllowed);
-	// Logger::instance().log(DEBUG, "RequestParse::checkMethod -> "
-	// 	+ toString(ServerConfig::instance().allow_methods[i])
-	// 	+ "!=" + toString(m));
 }
