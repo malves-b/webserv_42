@@ -14,7 +14,7 @@ class WebServer
 	private:
 		Config const&					_config; //std::vector<ServerConfig>		_config;
 		std::map<int, size_t>			_socketToServerIndex; // Socket FD to _config index//when poll() gives you fd = X, you can jump to configs[index] to figure out which server block this socket belongs to.
-		std::vector<ServerSocket>		_serverSocket; //ServerSocket					_serverSocket; //needs to be a vector
+		std::vector<ServerSocket*>		_serverSocket; //ServerSocket					_serverSocket; //needs to be a vector
 		std::map<int, ClientConnection>	_clients; //can also hold fd set to -1
 		std::vector<struct pollfd>		_pollFDs;
 		//bool							run; //to handle the run loop

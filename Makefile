@@ -36,12 +36,12 @@ OBJS = $(SRCS:srcs/%.cpp=$(OBJS_DIR)/%.o)
 #add logs folder
 
 CXX = c++
-CXXFLAGS = -Wall -Werror -Wextra -std=c++98 -Iincludes -g 
+CXXFLAGS = -Wall -Werror -Wextra -std=c++98 -Iincludes -g -DDEV=1
 
 RM = rm -rf
 
 $(NAME): $(OBJS)
-	$(CXX) $(CXXFLAGS) -DDEV=1 $(OBJS) -o $(NAME)
+	$(CXX) $(CXXFLAGS) $(OBJS) -o $(NAME)
 
 all: $(NAME)
 

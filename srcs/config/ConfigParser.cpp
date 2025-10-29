@@ -115,7 +115,7 @@ void	ConfigParser::parseLocationBlock(std::vector<std::string> const& tokens, st
 			hasUploadPath = true;
 			i += 2;
 		}
-		else if (token == "upload_enabled")
+		else if (token == "upload_enable")
 		{
 			if (hasUploadEnabled)
 				throw std::runtime_error("Duplicate upload_enabled directive in " + path);

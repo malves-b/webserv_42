@@ -2,6 +2,7 @@
 #include <config/LocationConfig.hpp>
 #include <request/RequestMethod.hpp>
 #include <utils/string_utils.hpp>
+#include <utils/Logger.hpp>
 
 ServerConfig::ServerConfig(void)
 {
@@ -96,10 +97,13 @@ const LocationConfig&	ServerConfig::mathLocation(const std::string& uri) const
 	for (size_t i = 0; i < _locations.size(); ++i)
 	{
 		const std::string& locPath = _locations[i].getPath();
-
 		//Match
+		Logger::instance().log(DEBUG, "ServerConfig::mathLocation locPath -> " + locPath + " uri ->" + uri);
 		if (locPath == uri)
+		{
+			Logger::instance().log(DEBUG, "ServerConfig::mathLocation found -> " + toString(i));
 			return _locations[i];
+		}
 
 		//Fallback
 		if (startsWith(uri, locPath) && locPath.size() > bestLen)
@@ -108,5 +112,6 @@ const LocationConfig&	ServerConfig::mathLocation(const std::string& uri) const
 			bestLen = locPath.size();
 		}
 	}
+	Logger::instance().log(DEBUG, "ServerConfig::mathLocation  best-> 0");
 	return (*best);
 }

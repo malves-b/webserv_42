@@ -11,7 +11,7 @@ class ClientConnection
 {
 	private:
 		int					_fd;
-		ServerConfig const*	_serverConfig;
+		ServerConfig const&	_serverConfig;
 		std::string			_requestBuffer;
 		std::string			_responseBuffer;
 		size_t				_sentBytes;
@@ -21,8 +21,9 @@ class ClientConnection
 		
 
 		ClientConnection&	operator=(ClientConnection const& rhs); //memmove?
-	public:
-		ClientConnection(int fd, ServerConfig const& config);
+		public:
+		ClientConnection(ServerConfig const& config);
+		// ClientConnection(int fd, ServerConfig const& config);
 		ClientConnection(ClientConnection const& src); //memmove?
 		~ClientConnection(void);
 
