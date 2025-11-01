@@ -28,22 +28,23 @@ SRCS = srcs/main.cpp \
 	$(CONFIG_PATH)/ConfigParser.cpp \
 	$(CONFIG_PATH)/LocationConfig.cpp \
 	$(CONFIG_PATH)/ServerConfig.cpp \
-	#$(INIT_PATH)/ServerConfig.cpp \
 
 OBJS_DIR = objs
 OBJS = $(SRCS:srcs/%.cpp=$(OBJS_DIR)/%.o)
-
-#add logs folder
+LOG_DIR = logs
 
 CXX = c++
 CXXFLAGS = -Wall -Werror -Wextra -std=c++98 -Iincludes -g -DDEV=1
 
 RM = rm -rf
 
-$(NAME): $(OBJS)
+$(NAME): $(OBJS) $(LOG_DIR)
 	$(CXX) $(CXXFLAGS) $(OBJS) -o $(NAME)
 
-all: $(NAME)
+all: $(LOG_DIR) $(NAME)
+
+$(LOG_DIR):
+	@mkdir -p $(LOG_DIR)
 
 $(OBJS_DIR)/%.o: srcs/%.cpp
 	@mkdir -p $(dir $@)
