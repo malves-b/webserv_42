@@ -2,10 +2,15 @@
 #include <sys/wait.h>
 #include <cerrno>
 #include <cstring>
+#include <poll.h>
+#include <fcntl.h>
+#include <ctime>
 #include <dispatcher/CgiHandler.hpp>
 #include <response/ResponseBuilder.hpp>
 #include <utils/Logger.hpp>
 #include <utils/Signals.hpp>
+
+static const int CGI_TIMEOUT_SEC = 30;
 
 std::string	CgiHandler::extractScriptName(const std::string& resolvedPath)
 {
@@ -131,8 +136,19 @@ void	CgiHandler::setupRedirection(int* stdinPipe, int* stdoutPipe)
 void	CgiHandler::checkForFailure(pid_t pid, HttpResponse& response)
 {
 	int status = 0;
-	waitpid(pid, &status, 0);
+	pid_t r = waitpid(pid, &status, WNOHANG);
 
+	if (r == 0)
+	{
+		// still running; caller decide (timeout, etc.)
+		return ;
+	}
+	if (r == -1)
+	{
+		Logger::instance().log(WARNING, "CgiHandler: waitpid(WNOHANG) failed: " + std::string(strerror(errno)));
+		response.setStatusCode(ResponseStatus::InternalServerError);
+		return ;
+	}
 	if (WIFEXITED(status))
 	{
 		int exitCode = WEXITSTATUS(status);
@@ -141,12 +157,14 @@ void	CgiHandler::checkForFailure(pid_t pid, HttpResponse& response)
 			Logger::instance().log(ERROR, "CgiHandler: CGI exited with code " + toString(exitCode));
 			response.setStatusCode(ResponseStatus::InternalServerError);
 		}
+		return ;
 	}
-	else if (WIFSIGNALED(status))
+	if (WIFSIGNALED(status))
 	{
 		int sig = WTERMSIG(status);
 		Logger::instance().log(ERROR, "CgiHandler: CGI terminated by signal " + toString(sig));
 		response.setStatusCode(ResponseStatus::InternalServerError);
+		return ;
 	}
 }
 
@@ -172,14 +190,13 @@ void	CgiHandler::handle(HttpRequest& request, HttpResponse& response)
 		return ;
 	}
 
-	//CHILD
+	// CHILD
 	if (pid == 0)
 	{
 		setupRedirection(stdinPipe, stdoutPipe);
 
 		std::string resolvedPath = request.getResolvedPath();
 		std::string rootDir = resolvedPath.substr(0, resolvedPath.find_last_of('/'));
-
 		if (chdir(rootDir.c_str()) == -1)
 		{
 			Logger::instance().log(ERROR, "CgiHandler: chdir() failed: " + std::string(strerror(errno)));
@@ -196,56 +213,110 @@ void	CgiHandler::handle(HttpRequest& request, HttpResponse& response)
 		exit(EXIT_FAILURE);
 	}
 
-	//PARENT
+	// PARENT
 	Signals::registerCgiProcess(pid);
 	close(stdinPipe[0]);
 	close(stdoutPipe[1]);
 
-	// Write request body to child (stdin)
-	const std::string& body = request.getBody();
-	if (!body.empty())
 	{
-		const char* p = body.c_str();
-		size_t left = body.size();
-
-		while (left > 0)
+		const std::string& body = request.getBody();
+		if (!body.empty())
 		{
-			ssize_t written = write(stdinPipe[1], p, left);
-
-			if (written < 0)
+			const char* p = body.c_str();
+			size_t left = body.size();
+			while (left > 0)
 			{
-				if (errno == EINTR)
-					continue ;
-				Logger::instance().log(WARNING, "CgiHandler: write() interrupted or failed: " + std::string(strerror(errno)));
-				break ;
+				ssize_t w = write(stdinPipe[1], p, left);
+				if (w < 0)
+				{
+					if (errno == EINTR)
+						continue ;
+					Logger::instance().log(WARNING, "CgiHandler: write() failed: " + std::string(strerror(errno)));
+					break ;
+				}
+				left -= (size_t)w;
+				p += w;
 			}
-
-			left -= (size_t)written;
-			p += written;
 		}
 	}
-	close(stdinPipe[1]); // EOF to CGI
+	close(stdinPipe[1]);
 
-	// Read child output
+	if (fcntl(stdoutPipe[0], F_SETFL, O_NONBLOCK) == -1)
+		Logger::instance().log(WARNING, "CgiHandler: fcntl(O_NONBLOCK) failed on CGI stdout");
+
 	std::string output;
 	char buffer[4096];
+	std::time_t start = std::time(NULL);
+	bool done = false;
 
-	while (true)
+	while (!done)
 	{
-		ssize_t n = read(stdoutPipe[0], buffer, sizeof(buffer));
-
-		if (n > 0)
+		std::time_t now = std::time(NULL);
+		double elapsed = difftime(now, start);
+		if (elapsed >= CGI_TIMEOUT_SEC)
 		{
-			output.append(buffer, n);
-			continue ;
+			Logger::instance().log(WARNING, "CgiHandler: CGI timeout exceeded (" + toString(CGI_TIMEOUT_SEC) + "s); killing pid=" + toString(pid));
+			kill(pid, SIGKILL);
+			int st;
+			waitpid(pid, &st, 0);
+			Signals::unregisterCgiProcess(pid);
+
+			response.setStatusCode(ResponseStatus::GatewayTimeout); // 504
+			close(stdoutPipe[0]);
+			Logger::instance().log(DEBUG, "[Finished] CgiHandler::handle (timeout)");
+			return ;
 		}
-		if (n < 0 && errno == EINTR)
-			continue ;
-		break ;
+
+		struct pollfd pfd;
+		pfd.fd = stdoutPipe[0];
+		pfd.events = POLLIN;
+		pfd.revents = 0;
+
+		int pr = poll(&pfd, 1, 100);
+		if (pr > 0 && (pfd.revents & POLLIN))
+		{
+			for (;;)
+			{
+				ssize_t n = read(stdoutPipe[0], buffer, sizeof(buffer));
+				if (n > 0)
+				{
+					output.append(buffer, n);
+					continue ;
+				}
+				if (n == -1 && errno == EAGAIN)
+					break ;
+				if (n == -1 && errno == EINTR)
+					continue ;
+				if (n == 0)
+				{
+					done = true;
+					break ;
+				}
+				Logger::instance().log(WARNING, "CgiHandler: read() failed: " + std::string(strerror(errno)));
+				done = true;
+				break ;
+			}
+		}
+		else if (pr == 0)
+		{
+			;
+		}
+		else if (pr < 0)
+		{
+			if (errno == EINTR)
+				continue ;
+			Logger::instance().log(WARNING, "CgiHandler: poll() failed: " + std::string(strerror(errno)));
+			done = true;
+		}
+
+		checkForFailure(pid, response); // WNOHANG
 	}
 
 	close(stdoutPipe[0]);
-	checkForFailure(pid, response);
+
+	int status = 0;
+	waitpid(pid, &status, WNOHANG);
+
 	Signals::unregisterCgiProcess(pid);
 	ResponseBuilder::handleCgiOutput(response, output);
 
