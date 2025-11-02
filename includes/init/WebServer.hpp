@@ -6,7 +6,7 @@
 #include "config/Config.hpp"
 #include <vector>
 #include <map>
-#include <utils/signals.hpp>
+#include <utils/Signals.hpp>
 
 class ClientConnection;
 class WebServer
@@ -17,7 +17,6 @@ class WebServer
 		std::vector<ServerSocket*>		_serverSocket; //ServerSocket					_serverSocket; //needs to be a vector
 		std::map<int, ClientConnection>	_clients; //can also hold fd set to -1
 		std::vector<struct pollfd>		_pollFDs;
-		//bool							run; //to handle the run loop
 
 		WebServer(WebServer const& src); //memmove?
 		WebServer&						operator=(WebServer const& rhs); //memmove?
@@ -32,6 +31,8 @@ class WebServer
 		void							receiveRequest(std::size_t i);
 		void							sendResponse(std::size_t i);
 		void							removeClientConnection(int clientFD, size_t pollFDIndex);
+		void							gracefulShutdown(void);
+		int								getPollTimeout(void);
 		//later
 
 

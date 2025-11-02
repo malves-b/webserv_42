@@ -1,19 +1,17 @@
-#include <sstream>
+#include <fstream>
 #include <sstream>
 #include <response/ResponseBuilder.hpp>
 #include <utils/Logger.hpp>
 #include <utils/string_utils.hpp>
-#include <utils/signals.hpp>
+#include <utils/Signals.hpp>
 
 const std::string	ResponseBuilder::fmtTimestamp(void)
 {
-	std::string timestamp;
 	std::time_t now = std::time(0);
 	tm* timeinfo = std::gmtime(&now);
 	char buf[100];
 	std::strftime(buf, sizeof(buf), "%a, %d %b %Y %H:%M:%S GMT", timeinfo);
-	timestamp += buf;
-	return (timestamp);
+	return (std::string(buf));
 }
 
 void	ResponseBuilder::setMinimumHeaders(HttpResponse& response)
@@ -29,10 +27,10 @@ std::string	ResponseBuilder::errorPageGenerator(ResponseStatus::code code)
 	oss << "<!DOCTYPE html>\r\n"
 		<< "<html>\r\n"
 		<< "<head><title>Error " << code << "</title></head>\r\n"
-		<< "<body style=\"text-align: center; padding: 50px;\">\r\n"
+		<< "<body style=\"text-align:center;padding:50px;\">\r\n"
 		<< "<h1>" << code << " - Error</h1>\r\n"
 		<< "<img src=\"https://http.cat/" << code
-		<< "\" alt=\"Error HTTP " << code << "\" style=\"max-width: 80%; height: auto;\">\r\n"
+		<< "\" alt=\"Error HTTP " << code << "\" style=\"max-width:80%;height:auto;\">\r\n"
 		<< "</body>\r\n"
 		<< "</html>\r\n";
 
@@ -41,36 +39,33 @@ std::string	ResponseBuilder::errorPageGenerator(ResponseStatus::code code)
 
 const std::string	ResponseBuilder::responseWriter(HttpResponse& response)
 {
-	std::ostringstream oss;
-
 	Logger::instance().log(DEBUG, "[Started] ResponseBuilder::responseWriter");
 
-	//response line
+	std::ostringstream oss;
+
+	// Status line
 	oss << "HTTP/" << response.getHttpVersion() << " "
 		<< response.getStatusCode() << " "
 		<< response.getReasonPhrase() << "\r\n";
 
-	//headers
+	// Headers
 	const std::map<std::string, std::string>& headers = response.getHeaders();
-	std::map<std::string, std::string>::const_iterator it;
-	for (it = headers.begin(); it != headers.end(); ++it)
-	{
-		oss << it->first << ":" << it->second << "\r\n";
-	}
+	for (std::map<std::string, std::string>::const_iterator it = headers.begin(); it != headers.end(); ++it)
+		oss << it->first << ": " << it->second << "\r\n";
 
 	oss << "\r\n";
 
 	if (!response.isChunked())
 		oss << response.getBody();
-	//else
-		//TODO body chunks
+
 	oss << "\r\n";
+
 	Logger::instance().log(DEBUG, "[Finished] ResponseBuilder::responseWriter");
 	return (oss.str());
 }
 
 void	ResponseBuilder::handleStaticPageOutput(HttpResponse& response,
-			const std::string output, const std::string& mimeType)
+	const std::string output, const std::string& mimeType)
 {
 	response.setChunked(false);
 	response.addHeader("Content-Type", mimeType);
@@ -83,6 +78,7 @@ void	ResponseBuilder::handleCgiOutput(HttpResponse& response, const std::string&
 	std::size_t sep = output.find("\r\n\r\n");
 	if (sep == std::string::npos)
 	{
+		Logger::instance().log(ERROR, "ResponseBuilder: invalid CGI output (no header separator)");
 		response.setStatusCode(ResponseStatus::BadGateway);
 		return ;
 	}
@@ -96,22 +92,23 @@ void	ResponseBuilder::handleCgiOutput(HttpResponse& response, const std::string&
 	while (std::getline(headerStream, line))
 	{
 		if (!line.empty() && line[line.size() - 1] == '\r')
-			line = line.substr(0, line.size() - 1);
+			line.erase(line.size() - 1);
 
-		std::size_t colon = line.find(":");
-		if (colon != std::string::npos)
+		std::size_t colon = line.find(':');
+		if (colon == std::string::npos)
+			continue ;
+
+		std::string key = trim(line.substr(0, colon));
+		std::string value = trim(line.substr(colon + 1));
+
+		response.addHeader(key, value);
+
+		if (toLower(key) == "status")
 		{
-			std::string key = trim(line.substr(0, colon));
-			std::string value = trim(line.substr(colon + 1));
-			response.addHeader(key, value);
-
-			if (toLower(key) == "status")
-			{
-				std::istringstream iss(value);
-				int status;
-				if (iss >> status)
-					response.setStatusCode(static_cast<ResponseStatus::code>(status));
-			}
+			std::istringstream iss(value);
+			int status;
+			if (iss >> status)
+				response.setStatusCode(static_cast<ResponseStatus::code>(status));
 		}
 	}
 
@@ -123,80 +120,75 @@ void	ResponseBuilder::build(ClientConnection& client, HttpRequest& req, HttpResp
 {
 	Logger::instance().log(DEBUG, "[Started] ResponseBuilder::build");
 	Logger::instance().log(DEBUG,
-		"[ResponseBuilder::build] [StatusCode ->" + toString(res.getStatusCode()) + "]");
-	
-	if (Signals::shouldStop())
-		res.setStatusCode(ResponseStatus::ServiceUnavailable);
+		"ResponseBuilder: StatusCode -> " + toString(res.getStatusCode()));
+
+	// if (Signals::shouldStop())
+	// 	res.setStatusCode(ResponseStatus::ServiceUnavailable);
 
 	setMinimumHeaders(res);
 	res.setReasonPhrase(res.getStatusCode());
 	res.setVersion("1.1");
-	res.addHeader("connection", "keep-alive");
+	res.addHeader("Connection", "keep-alive");
 
 	if (req.getMeta().shouldClose())
 	{
-		res.addHeader("connection", "close");
+		res.addHeader("Connection", "close");
 		req.getMeta().setConnectionClose(true);
 	}
+
 	if (res.getStatusCode() >= 400)
 	{
 		if (shouldCloseConnection(res.getStatusCode()))
 		{
-			res.addHeader("connection", "close");
+			res.addHeader("Connection", "close");
 			req.getMeta().setConnectionClose(true);
 		}
+
 		if (!errorPageConfig(client.getServerConfig().getRoot(), res, client.getServerConfig()))
 		{
 			std::string content = errorPageGenerator(res.getStatusCode());
 			handleStaticPageOutput(res, content, "text/html");
 		}
 	}
+
 	Logger::instance().log(DEBUG, "[Finished] ResponseBuilder::build");
 }
 
-bool	ResponseBuilder::errorPageConfig(const std::string& root, HttpResponse& res, ServerConfig const& config)
+bool	ResponseBuilder::errorPageConfig(const std::string& root, HttpResponse& res, const ServerConfig& config)
 {
 	int statusCode = static_cast<int>(res.getStatusCode());
-	std::string path;
 	const std::map<int, std::string>& errorsPages = config.getErrorPage();
-	std::map<int, std::string>::const_iterator c_it;
 
-	c_it = errorsPages.find(statusCode);
-	if (c_it != errorsPages.end())
-		path = c_it->second;
-	if (path != "")
+	std::map<int, std::string>::const_iterator it = errorsPages.find(statusCode);
+	if (it == errorsPages.end())
+		return (false);
+
+	std::string path = root + it->second;
+	std::ifstream file(path.c_str(), std::ios::binary);
+
+	if (!file)
 	{
-		path = root + path;
-		std::ifstream file(path.c_str(), std::ios::binary);
-
-		if (!file)
-		{
-			res.setStatusCode(ResponseStatus::InternalServerError);
-			Logger::instance().log(DEBUG, "ResponseBuilder::errorPageConfig erro file -> " + path);
-
-			return (false);
-		}
-		std::ostringstream buffer;
-		buffer << file.rdbuf();
-		handleStaticPageOutput(res,	buffer.str(), "text/html");
-		return (true);
+		Logger::instance().log(ERROR, "ResponseBuilder: cannot open error page file -> " + path);
+		res.setStatusCode(ResponseStatus::InternalServerError);
+		return (false);
 	}
-	return (false);
+
+	std::ostringstream buffer;
+	buffer << file.rdbuf();
+	file.close();
+
+	handleStaticPageOutput(res, buffer.str(), "text/html");
+
+	Logger::instance().log(DEBUG, "ResponseBuilder: served custom error page -> " + path);
+	return (true);
 }
 
 bool	ResponseBuilder::shouldCloseConnection(int statusCode)
 {
 	switch (statusCode)
 	{
-		case 400: // Bad Request
-		case 408: // Request Timeout
-		case 411: // Length Required
-		case 413: // Payload Too Large
-		case 414: // URI Too Long
-		case 431: // Request Header Fields Too Large
-		case 500: // Internal Server Error
-		case 501: // Not Implemented
-		case 505: // HTTP Version Not Supported
+		case 400: case 408: case 411: case 413:
+		case 414: case 431: case 500: case 501: case 505:
 			return (true);
 		default:
 			return (false);

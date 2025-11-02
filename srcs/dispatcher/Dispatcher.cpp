@@ -23,42 +23,67 @@ void	Dispatcher::dispatch(ClientConnection& client)
 	Router::resolve(req, res, config);
 
 	Logger::instance().log(DEBUG,
-		"StaticPageHandler::handle Route -> " + toString(req.getRouteType()));
+		"Dispatcher: RouteType -> " + toString(req.getRouteType()));
 	Logger::instance().log(DEBUG,
-		"Dispatcher::dispatch [Path -> " + req.getResolvedPath() + "]");
+		"Dispatcher: Resolved path -> " + req.getResolvedPath());
 
 	switch (req.getRouteType())
 	{
 		case RouteType::Redirect:
+			Logger::instance().log(INFO, "Dispatcher: Handling Redirect");
+			// Nothing to do, ResponseBuilder handles redirect headers
 			break ;
+
 		case RouteType::Upload:
+			Logger::instance().log(INFO, "Dispatcher: Handling Upload");
 			UploadHandler::handle(req, res, location.getUploadPath());
 			break ;
+
 		case RouteType::StaticPage:
+			Logger::instance().log(INFO, "Dispatcher: Handling Static Page");
 			StaticPageHandler::handle(req, res);
 			break ;
+
 		case RouteType::CGI:
+			Logger::instance().log(INFO, "Dispatcher: Handling CGI Execution");
 			CgiHandler::handle(req, res);
 			break ;
+
 		case RouteType::AutoIndex:
+			Logger::instance().log(INFO, "Dispatcher: Handling AutoIndex");
 			AutoIndexHandler::handle(req, res);
-			break;
+			break ;
+
 		case RouteType::Error:
 		default:
+			Logger::instance().log(WARNING, "Dispatcher: Handling Error Response");
+			// ResponseBuilder will handle error status (404, 403, etc.)
 			break ;
 	}
 
 	ResponseBuilder::build(client, req, res);
 
-	if (req.getMeta().shouldClose()) //TODO
-		client._keepAlive = false;
+	// CONNECTION MODE
+	if (req.getMeta().shouldClose())
+	{
+		client.setKeepAlive(false);
+		Logger::instance().log(DEBUG, "Dispatcher: Connection set to close");
+	}
 	else
-		client._keepAlive = true;
+	{
+		client.setKeepAlive(true);
+		Logger::instance().log(DEBUG, "Dispatcher: Keep-Alive enabled");
+	}
 
-	client.setResponseBuffer(ResponseBuilder::responseWriter(res)); //TODO
+	// RESPONSE BUFFER
+	client.setResponseBuffer(ResponseBuilder::responseWriter(res));
+
 	if (res.getHeader("Content-Type") == "text/html")
-		Logger::instance().log(DEBUG, "Dispatcher::dispatch response->" + client.getResponseBuffer());
+		Logger::instance().log(DEBUG, "Dispatcher: HTML response -> " + client.getResponseBuffer());
+
+	// CLEANUP
 	req.reset();
 	res.reset();
+
 	Logger::instance().log(DEBUG, "[Finished] Dispatcher::dispatch");
 }

@@ -19,7 +19,6 @@ class ServerSocket
 		void				startSocket(std::string const& port);
 		void				listenConnections(int backlog);
 		std::vector<int>	acceptConnections(void);
-		//std::vector<ClientConnection>	acceptConnections(void); //accepts clients, producing a vector of ClientConnection
 
 		//accesor
 		int					getFD(void);

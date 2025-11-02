@@ -1,26 +1,38 @@
 #include <init/ServerSocket.hpp>
-#include <sys/socket.h> //socket(), setsockopt(), listen()
-#include <netdb.h> //getaddrinfo()
-#include <unistd.h> //close() //not sure if there is a C++ alternative
-#include <fcntl.h> //fcntl()
+#include <sys/socket.h>    // socket(), setsockopt(), listen(), accept()
+#include <netdb.h>         // getaddrinfo()
+#include <unistd.h>        // close()
+#include <fcntl.h>         // fcntl()
 #include <errno.h>
-#include <cstring> //memset(), strerror()
+#include <cstring>         // memset(), strerror()
 #include <exception>
-#include <stdexcept> //runtime_error
+#include <stdexcept>       // runtime_error
 #include <string>
 #include <iostream>
+#include <vector>
+#include <utils/Logger.hpp>
+#include <utils/string_utils.hpp>
 
-ServerSocket::ServerSocket(void) : _fd(-1) {}
+ServerSocket::ServerSocket(void) : _fd(-1)
+{
+	Logger::instance().log(DEBUG, "ServerSocket: constructed (fd=-1)");
+}
 
-ServerSocket::ServerSocket(ServerSocket const& src) : _fd(src._fd) {} //memmove?
+ServerSocket::ServerSocket(ServerSocket const& src) : _fd(src._fd)
+{
+	Logger::instance().log(DEBUG, "ServerSocket: copy-constructed (fd=" + toString(_fd) + ")");
+}
 
 ServerSocket::~ServerSocket(void)
 {
 	if (this->_fd != -1)
+	{
 		::close(this->_fd);
+		Logger::instance().log(DEBUG, "ServerSocket: closed socket fd=" + toString(_fd));
+	}
 }
 
-void	ServerSocket::startSocket(std::string const& port)
+void	ServerSocket::startSocket(const std::string& port)
 {
 	int				status;
 	int				socketFD;
@@ -28,55 +40,60 @@ void	ServerSocket::startSocket(std::string const& port)
 	struct addrinfo	*servInfo;
 	struct addrinfo	*tmp;
 
-	std::memset(&hints, 0, sizeof(hints));
-	hints.ai_family = AF_UNSPEC; //IPv4 or IPv6
-	hints.ai_socktype = SOCK_STREAM; //TCP
-	hints.ai_flags = AI_PASSIVE; //Fill IP for me
+	Logger::instance().log(INFO, "ServerSocket: initializing socket on port " + port);
 
-	if ((status = ::getaddrinfo(NULL, port.c_str(), &hints, &servInfo)) != 0)
+	std::memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_UNSPEC;      // IPv4 or IPv6
+	hints.ai_socktype = SOCK_STREAM;  // TCP
+	hints.ai_flags = AI_PASSIVE;      // Automatically fill IP
+
+	status = ::getaddrinfo(NULL, port.c_str(), &hints, &servInfo);
+	if (status != 0)
 	{
 		std::string	errorMsg(gai_strerror(status));
-		throw std::runtime_error("error: getaddrinfo: " + errorMsg);
+		throw std::runtime_error("ServerSocket::startSocket: getaddrinfo failed: " + errorMsg);
 	}
-	/* getaddrinfo() returns a list of address structures.
-	Try each address until we successfully bind(2).
-	If socket(2) (or bind(2)) fails, we (close the socket
-	and) try the next address. */
+
 	for (tmp = servInfo; tmp != NULL; tmp = tmp->ai_next)
 	{
 		socketFD = ::socket(tmp->ai_family, tmp->ai_socktype, tmp->ai_protocol);
 		if (socketFD == -1)
 			continue ;
-		int	yes = 1;
-		//SO_REUSEADDR and process timing can make duplicate binds “sometimes work”. 
-		//if SO_REUSEADDR is set, the OS might temporarily allow 
-		//a bind to a port that appears free but is still “in use” in some edge cases 
-		//(e.g., TIME_WAIT sockets). This is outside our control
+
+		int yes = 1;
 		if (::setsockopt(socketFD, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) != 0)
 		{
-			::freeaddrinfo(servInfo);
 			::close(socketFD);
+			::freeaddrinfo(servInfo);
 			std::string	errorMsg(strerror(errno));
-			throw std::runtime_error("error: setsockopt: " + errorMsg);
+			throw std::runtime_error("ServerSocket::startSocket: setsockopt failed: " + errorMsg);
 		}
-		if (::bind(socketFD, tmp->ai_addr, tmp->ai_addrlen) == 0) //If two server configs specify the same port (say 8080 twice), your second bind() will fail with EADDRINUSE
-			break ; //sucess
+
+		if (::bind(socketFD, tmp->ai_addr, tmp->ai_addrlen) == 0)
+			break ; // Success
+
 		::close(socketFD);
 		socketFD = -1;
 	}
+
 	::freeaddrinfo(servInfo);
+
 	if (socketFD == -1)
 	{
 		std::string	errorMsg(strerror(errno));
-		throw std::runtime_error("error: bind: " + errorMsg);
+		throw std::runtime_error("ServerSocket::startSocket: bind failed: " + errorMsg);
 	}
+
 	if (::fcntl(socketFD, F_SETFL, O_NONBLOCK) == -1)
 	{
 		::close(socketFD);
 		std::string	errorMsg(strerror(errno));
-		throw std::runtime_error("error: fcntl: " + errorMsg);
+		throw std::runtime_error("ServerSocket::startSocket: fcntl failed: " + errorMsg);
 	}
+
 	this->_fd = socketFD;
+
+	Logger::instance().log(INFO, "ServerSocket: successfully started on port " + port);
 }
 
 void	ServerSocket::listenConnections(int backlog)
@@ -84,54 +101,51 @@ void	ServerSocket::listenConnections(int backlog)
 	if (::listen(this->_fd, backlog) == -1)
 	{
 		std::string	errorMsg(strerror(errno));
-		throw std::runtime_error("listen: listenConnections: " + errorMsg);
+		throw std::runtime_error("ServerSocket::listenConnections: listen failed: " + errorMsg);
 	}
+	Logger::instance().log(INFO, "ServerSocket: listening with backlog=" + toString(backlog));
 }
 
 std::vector<int>	ServerSocket::acceptConnections(void)
 {
 	std::vector<int>	newFDs;
 
-	//the kernel doesn’t guarantee that there’s exactly connection to be accepted.
-	//There may be multiple connections queued in the backlog.
-	//This drains the kernel’s pending connection queue in one go.
-	//You don’t need to wait for another poll() cycle to accept the remaining queued clients.
 	while (true)
 	{
 		struct sockaddr_storage	clientAddr;
-		socklen_t				addrSize;
-		int						clientFD;
-
-		addrSize = sizeof(clientAddr);
-		clientFD = accept(this->_fd, (struct sockaddr*)&clientAddr, &addrSize);
+		socklen_t				addrSize = sizeof(clientAddr);
+		int						clientFD = ::accept(this->_fd, (struct sockaddr*)&clientAddr, &addrSize);
 
 		if (clientFD == -1)
 		{
-			if (errno == EAGAIN || errno == EWOULDBLOCK) //no client ready yet -> break
+			if (errno == EAGAIN || errno == EWOULDBLOCK)
 				break ;
+
 			std::string	errorMsg(strerror(errno));
-			std::cerr << "error: accept: " << errorMsg << '\n';
-			break ; //will return fds anyway?
+			Logger::instance().log(ERROR, "ServerSocket::acceptConnections: accept failed: " + errorMsg);
+			break ;
 		}
-		//Set client sockets to non-blocking. The new fd got from accept() may not 
-		//inherit non-blocking on all platforms
+
 		if (::fcntl(clientFD, F_SETFL, O_NONBLOCK) == -1)
 		{
-			::close(clientFD);
 			std::string	errorMsg(strerror(errno));
-			std::cerr << "error: fcntl: " << errorMsg << '\n';
-			continue ; //skip this client
+			Logger::instance().log(WARNING, "ServerSocket::acceptConnections: failed to set non-blocking: " + errorMsg);
+			::close(clientFD);
+			continue ;
 		}
+
 		try
 		{
 			newFDs.push_back(clientFD);
+			Logger::instance().log(DEBUG, "ServerSocket: accepted client FD=" + toString(clientFD));
 		}
-		catch (std::exception const& e)
+		catch (const std::exception& e)
 		{
+			Logger::instance().log(ERROR, std::string("ServerSocket::acceptConnections: exception -> ") + e.what());
 			::close(clientFD);
-			std::cerr << "error: " << e.what() << '\n';
 		}
 	}
+
 	return (newFDs);
 }
 

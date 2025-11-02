@@ -15,26 +15,24 @@ class ClientConnection
 		std::string			_requestBuffer;
 		std::string			_responseBuffer;
 		size_t				_sentBytes;
+		bool				_keepAlive;
 		//time_t				_lastActive;
 		HttpRequest			_httpRequest;
 		HttpResponse		_httpResponse;
-		
 
 		ClientConnection&	operator=(ClientConnection const& rhs); //memmove?
-		public:
-		ClientConnection(ServerConfig const& config);
-		// ClientConnection(int fd, ServerConfig const& config);
-		ClientConnection(ClientConnection const& src); //memmove?
-		~ClientConnection(void);
 
-		bool				_keepAlive; //test
+	public:
+		ClientConnection(ServerConfig const& config);
+		ClientConnection(ClientConnection const& src);
+		~ClientConnection(void);
 
 		ssize_t				recvData(void);
 		ssize_t				sendData(ClientConnection &client, size_t sent, size_t toSend);
 		bool				completedRequest(void);
 		void				clearBuffer(void);
-
-		void adoptFD(int fd);
+		void				adoptFD(int fd);
+		void				setKeepAlive(bool keepAlive);
 
 		//accessors
 		int const&			getFD(void) const;
@@ -42,12 +40,12 @@ class ClientConnection
 		std::string const&	getRequestBuffer(void) const;
 		std::string const&	getResponseBuffer(void) const;
 		ServerConfig const&	getServerConfig(void) const;
+		bool				getKeepAlive(void) const;
 		void				setSentBytes(size_t bytes);
 		void				setResponseBuffer(const std::string& buffer);
 
-		//:D
-		HttpRequest&	getRequest(void);
-		HttpResponse&	getResponse(void);
+		HttpRequest&		getRequest(void);
+		HttpResponse&		getResponse(void);
 };
 
 #endif //CLIENTCONNECTION_HPP

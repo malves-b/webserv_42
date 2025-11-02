@@ -6,17 +6,17 @@
 #include <utils/string_utils.hpp>
 #include <utils/Logger.hpp>
 
-const std::string StaticPageHandler::detectMimeType(const std::string& resolvedPath)
+const std::string	StaticPageHandler::detectMimeType(const std::string& resolvedPath)
 {
-	// Posição do último ponto
 	std::string::size_type dotPos = resolvedPath.rfind('.');
+
 	if (dotPos == std::string::npos)
 		return ("application/octet-stream");
 
 	std::string ext = toLower(resolvedPath.substr(dotPos + 1));
 
-	// tabela de MIME types
 	static std::map<std::string, std::string> mimeTypes;
+
 	if (mimeTypes.empty())
 	{
 		mimeTypes["html"] = "text/html";
@@ -34,37 +34,45 @@ const std::string StaticPageHandler::detectMimeType(const std::string& resolvedP
 	}
 
 	std::map<std::string, std::string>::const_iterator it = mimeTypes.find(ext);
+
 	if (it != mimeTypes.end())
 		return (it->second);
 
-	// fallback
 	return ("application/octet-stream");
 }
-
 
 void	StaticPageHandler::handle(HttpRequest& req, HttpResponse& res)
 {
 	Logger::instance().log(DEBUG, "[Started] StaticPageHandler::handle");
 	Logger::instance().log(DEBUG,
-			"StaticPageHandler::handle [Path -> " + req.getResolvedPath() + "]");
+		"StaticPageHandler: Requested path -> " + req.getResolvedPath());
+
 	struct stat st;
+
 	if (stat(req.getResolvedPath().c_str(), &st) != 0)
 	{
+		Logger::instance().log(WARNING, "StaticPageHandler: File not found -> " + req.getResolvedPath());
 		res.setStatusCode(ResponseStatus::NotFound);
 		return ;
 	}
 
 	std::ifstream file(req.getResolvedPath().c_str(), std::ios::binary);
-
-	if (!file)
+	if (!file.is_open())
 	{
+		Logger::instance().log(ERROR, "StaticPageHandler: Failed to open file -> " + req.getResolvedPath());
 		res.setStatusCode(ResponseStatus::InternalServerError);
 		return ;
 	}
+
 	std::ostringstream buffer;
 	buffer << file.rdbuf();
+	file.close();
 
-	ResponseBuilder::handleStaticPageOutput(res,
-		buffer.str(), detectMimeType(req.getResolvedPath()));
+	const std::string& mime = detectMimeType(req.getResolvedPath());
+
+	Logger::instance().log(DEBUG, "StaticPageHandler: MIME type detected -> " + mime);
+
+	ResponseBuilder::handleStaticPageOutput(res, buffer.str(), mime);
+
 	Logger::instance().log(DEBUG, "[Finished] StaticPageHandler::handle");
 }

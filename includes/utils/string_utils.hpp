@@ -97,4 +97,47 @@ inline bool	startsWith(const std::string& s, const std::string& prefix)
 			std::equal(prefix.begin(), prefix.end(), s.begin());
 }
 
+inline static std::string	joinPaths(const std::string& root, const std::string& uri)
+{
+	std::string result = root;
+
+	if (!result.empty() && result[result.size() - 1] == '/')
+		result.erase(result.size() - 1);
+
+	if (uri.empty())
+		return (result);
+
+	if (uri[0] == '/')
+		return (result + uri);
+
+	return (result + "/" + uri);
+}
+
+inline static bool	hasParentTraversal(const std::string& s)
+{
+	if (s.find("/../") != std::string::npos)
+		return (true);
+
+	if (s.size() >= 3 && s.substr(0, 3) == "../")
+		return (true);
+
+	if (s.size() >= 3 && s.substr(s.size() - 3) == "/..")
+		return (true);
+
+	return (false);
+}
+
+inline static std::string	trim_copy(const std::string& s)
+{
+	size_t a = 0;
+	size_t b = s.size();
+
+	while (a < b && (s[a] == ' ' || s[a] == '\t'))
+		a++;
+	while (b > a && (s[b - 1] == ' ' || s[b - 1] == '\t'))
+		b--;
+
+	return (s.substr(a, b - a));
+}
+
 #endif //STRING_UTILS_HPP

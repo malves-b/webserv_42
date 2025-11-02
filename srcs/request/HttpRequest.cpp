@@ -34,7 +34,6 @@ void	HttpRequest::setMinor(int minor) { this->_minor = minor; }
 
 void	HttpRequest::addHeader(const std::string& name, const std::string& value)
 {
-	//refactor insertion
 	std::map<std::string, std::string>::iterator it;
 	it = this->_headers.find(name);
 	if (it != _headers.end())
@@ -253,8 +252,3 @@ const std::string	HttpRequest::getResolvedPath(void) const
 {
 	return (this->_resolvedPath);
 }
-
-// int	HttpRequest::getClientFD(void) const
-// {
-// 	return (this->_clientFD);
-// }
