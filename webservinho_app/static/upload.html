@@ -1,13 +1,71 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
 <head>
-  <title>Upload file</title>
+  <meta charset="utf-8">
+  <title>Upload File - webservinho</title>
+  <style>
+    body {
+      font-family: "Comic Sans MS", Arial, sans-serif;
+      background: #b7d1f8;
+      text-align: center;
+    }
+    .wrapper {
+      background: #fff;
+      padding: 20px;
+      margin: 20px auto;
+      width: 800px;
+      box-shadow: 0 0 0 4px #000, 0 0 0 8px #ff00ff;
+    }
+    h1 { margin-top: 0; }
+    input[type="file"] {
+      border: 2px dashed #999;
+      padding: 8px;
+      background-color: #f5f5f5;
+    }
+    input[type="submit"] {
+      margin-top: 10px;
+      padding: 8px 20px;
+      border: 2px solid #000;
+      background: #ffff00;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    input[type="submit"]:hover {
+      background: #ffcc00;
+    }
+    a {
+      text-decoration: none;
+      font-weight: bold;
+      color: #000;
+    }
+    .section {
+      margin-top: 20px;
+      border-top: 2px dashed #999;
+      padding-top: 10px;
+    }
+  </style>
 </head>
 <body>
-  <h1>Upload a File</h1>
-  <form action="/upload" method="POST" enctype="multipart/form-data">
-    <input type="file" name="file"><br><br>
-    <input type="submit" value="Upload">
-  </form>
+  <div class="wrapper">
+    <h1>Upload a File</h1>
+    <img src="/img/webservinho_logo.png" alt="webservinho logo" width="200">
+
+    <p>
+      Select a file from your computer and click <strong>Upload</strong> to send it to the server.<br>
+      This page is used to test file upload functionality in <em>webservinho</em>.
+    </p>
+
+    <form action="/upload" method="POST" enctype="multipart/form-data">
+      <input type="file" name="file"><br><br>
+      <input type="submit" value="Upload">
+    </form>
+
+    <div class="section">
+      <p>
+        Uploaded files should appear under the <a href="/uploads">/uploads</a> directory if autoindex is enabled.
+      </p>
+      <a href="/">⬅ Back to Home</a>
+    </div>
+  </div>
 </body>
 </html>
