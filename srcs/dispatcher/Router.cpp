@@ -7,10 +7,10 @@
 #include <config/ServerConfig.hpp>
 #include <utils/Logger.hpp>
 
-void	Router::computeResolvedPath(HttpRequest& request, const std::string& rawRoot)
+void	Router::computeResolvedPath(HttpRequest& req, const std::string& rawRoot)
 {
 	std::string resolvedPath;
-	std::string uri  = request.getUri();
+	std::string uri  = req.getUri();
 
 	std::string root = rawRoot;
 	if (!root.empty() && root[root.size() - 1] == '/')
@@ -21,7 +21,7 @@ void	Router::computeResolvedPath(HttpRequest& request, const std::string& rawRoo
 	else
 		resolvedPath = root + "/" + uri;
 	
-	request.setResolvedPath(resolvedPath);
+	req.setResolvedPath(resolvedPath);
 }
 
 bool	Router::checkErrorStatus(ResponseStatus::code status, HttpRequest& req, HttpResponse& res)
@@ -35,9 +35,9 @@ bool	Router::checkErrorStatus(ResponseStatus::code status, HttpRequest& req, Htt
 	return (false);
 }
 
-void	Router::resolve(HttpRequest& request, HttpResponse& response, ServerConfig const& config)
+void	Router::resolve(HttpRequest& req, HttpResponse& res, ServerConfig const& config)
 {
-	const LocationConfig& location = config.mathLocation(request.getUri());
+	const LocationConfig& location = config.mathLocation(req.getUri());
 	std::string index;
 	std::string root;
 	std::string cgiPath = location.getCgiPath();
@@ -52,70 +52,79 @@ void	Router::resolve(HttpRequest& request, HttpResponse& response, ServerConfig 
 
 	ResponseStatus::code status = ResponseStatus::OK;
 
-	if (request.getParseError() != ResponseStatus::OK)
+	if (req.getParseError() != ResponseStatus::OK)
 	{
-		request.setRouteType(RouteType::Error);
-		response.setStatusCode(request.getParseError());
+		req.setRouteType(RouteType::Error);
+		res.setStatusCode(req.getParseError());
 		return ;
 	}
 
-	computeResolvedPath(request, root);
+	computeResolvedPath(req, root);
 
 	Logger::instance().log(DEBUG,
-		"computeResolvedPath [Path -> " + request.getResolvedPath() + "]");
+		"computeResolvedPath [Path -> " + req.getResolvedPath() + "]");
 	
-	if (isRedirect(request, response, config))
+	if (isRedirect(req, res, config))
 	{
-		request.setRouteType(RouteType::Redirect);
+		req.setRouteType(RouteType::Redirect);
 		return ;
 	}
-
-	if (isAutoIndex(index, request, config))
+	if (isAutoIndex(index, req, config))
 	{
-		request.setRouteType(RouteType::AutoIndex);
+		req.setRouteType(RouteType::AutoIndex);
 		return ;
 	}
-	if (isUpload(request, config))
+	if (checkErrorStatus(status, req, res))
+		return ;
+	if (isUpload(req, res, config))
 	{
-		request.setRouteType(RouteType::Upload);
+		req.setRouteType(RouteType::Upload);
 		return ;
 	}
-	if (isStaticFile(index, status, request))
+	if (checkErrorStatus(status, req, res))
+		return ;
+	if (isStaticFile(index, status, req))
 	{
-		request.setRouteType(RouteType::StaticPage);
-		if (request.getMethod() != RequestMethod::GET)
+		req.setRouteType(RouteType::StaticPage);
+		if (req.getMethod() != RequestMethod::GET)
 		{
-			request.setRouteType(RouteType::Error);
-			response.setStatusCode(ResponseStatus::MethodNotAllowed);
+			req.setRouteType(RouteType::Error);
+			res.setStatusCode(ResponseStatus::MethodNotAllowed);
 		}
 		return ;
 	}
-	if (checkErrorStatus(status, request, response))
+	if (checkErrorStatus(status, req, res))
 		return ;
-	if (isCgi(cgiPath, request.getResolvedPath(), status))
+	if (isCgi(cgiPath, req.getResolvedPath(), status))
 	{
-		request.setRouteType(RouteType::CGI);
+		req.setRouteType(RouteType::CGI);
 		return ;
 	}
-	if (checkErrorStatus(status, request, response))
+	if (checkErrorStatus(status, req, res))
 		return ;
 
-	request.setRouteType(RouteType::Error);
-	response.setStatusCode(ResponseStatus::NotFound);
+	req.setRouteType(RouteType::Error);
+	res.setStatusCode(ResponseStatus::NotFound);
 }
 
-bool	Router::isUpload(HttpRequest& req, ServerConfig const& config)
+bool	Router::isUpload(HttpRequest& req, HttpResponse& res, ServerConfig const& config)
 {
 	const LocationConfig& location = config.mathLocation(req.getUri());
-	if (!location.getUploadEnabled())
-		return (false);
+
 	std::string uploadPath = location.getUploadPath();
 	const std::string& uri = req.getUri();
 	Logger::instance().log(DEBUG, "Router::isUpload compare URI -> " + uri
 		+ " | upload path -> " + uploadPath);
 	if (uri == uploadPath &&
 		(req.getMethod() == RequestMethod::POST || req.getMethod() == RequestMethod::PUT))
+	{
+		if (!location.getUploadEnabled())
+		{
+			res.setStatusCode(ResponseStatus::MethodNotAllowed);
+			return (false);
+		}
 		return (true);
+	}
 	return (false);
 }
 

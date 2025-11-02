@@ -48,7 +48,7 @@ void	Dispatcher::dispatch(ClientConnection& client)
 			break ;
 	}
 
-	ResponseBuilder::build(req, res, config);
+	ResponseBuilder::build(client, req, res);
 
 	if (req.getMeta().shouldClose()) //TODO
 		client._keepAlive = false;

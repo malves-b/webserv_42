@@ -119,7 +119,7 @@ void	ResponseBuilder::handleCgiOutput(HttpResponse& response, const std::string&
 	response.addHeader("Content-Length", toString(bodyPart.size()));
 }
 
-void	ResponseBuilder::build(HttpRequest& req, HttpResponse& res, ServerConfig const& config)
+void	ResponseBuilder::build(ClientConnection& client, HttpRequest& req, HttpResponse& res)
 {
 	Logger::instance().log(DEBUG, "[Started] ResponseBuilder::build");
 	Logger::instance().log(DEBUG,
@@ -145,7 +145,7 @@ void	ResponseBuilder::build(HttpRequest& req, HttpResponse& res, ServerConfig co
 			res.addHeader("connection", "close");
 			req.getMeta().setConnectionClose(true);
 		}
-		if (!errorPageConfig(res, config))
+		if (!errorPageConfig(client.getServerConfig().getRoot(), res, client.getServerConfig()))
 		{
 			std::string content = errorPageGenerator(res.getStatusCode());
 			handleStaticPageOutput(res, content, "text/html");
@@ -154,7 +154,7 @@ void	ResponseBuilder::build(HttpRequest& req, HttpResponse& res, ServerConfig co
 	Logger::instance().log(DEBUG, "[Finished] ResponseBuilder::build");
 }
 
-bool	ResponseBuilder::errorPageConfig(HttpResponse& res, ServerConfig const& config)
+bool	ResponseBuilder::errorPageConfig(const std::string& root, HttpResponse& res, ServerConfig const& config)
 {
 	int statusCode = static_cast<int>(res.getStatusCode());
 	std::string path;
@@ -166,11 +166,14 @@ bool	ResponseBuilder::errorPageConfig(HttpResponse& res, ServerConfig const& con
 		path = c_it->second;
 	if (path != "")
 	{
+		path = root + path;
 		std::ifstream file(path.c_str(), std::ios::binary);
 
 		if (!file)
 		{
 			res.setStatusCode(ResponseStatus::InternalServerError);
+			Logger::instance().log(DEBUG, "ResponseBuilder::errorPageConfig erro file -> " + path);
+
 			return (false);
 		}
 		std::ostringstream buffer;
