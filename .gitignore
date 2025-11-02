@@ -39,5 +39,6 @@ objs/
 *.json
 
 srcs/response/ResponseBuilder.cpp
+.vscode
 .vscode/settings.json
 TODO
