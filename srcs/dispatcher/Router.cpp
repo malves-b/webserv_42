@@ -20,7 +20,7 @@ void	Router::resolve(HttpRequest& req, HttpResponse& res, const ServerConfig& co
 	}
 
 	// Match the location for this request URI
-	const LocationConfig& location = config.mathLocation(req.getUri());
+	const LocationConfig& location = config.matchLocation(req.getUri());
 	const std::string index = location.getHasIndexFiles() ? location.getIndex() : "";
 	const std::string root  = location.getHasRoot() ? location.getRoot() : config.getRoot();
 	const std::string cgiPath = location.getCgiPath();
@@ -36,9 +36,14 @@ void	Router::resolve(HttpRequest& req, HttpResponse& res, const ServerConfig& co
 
 	// Build the resolved filesystem path
 	computeResolvedPath(req, root);
-	Logger::instance().log(DEBUG, "Router: Resolved path → " + req.getResolvedPath());
+	Logger::instance().log(DEBUG, "Router: Resolved path -> " + req.getResolvedPath());
 
-	ResponseStatus::code status = ResponseStatus::OK;
+	if (req.getParseError() != ResponseStatus::OK
+		&& req.getMethod() == RequestMethod::DELETE)
+	{
+		req.setRouteType(RouteType::Delete);
+		return ;
+	}
 
 	if (isRedirect(req, res, config))
 	{
@@ -53,7 +58,7 @@ void	Router::resolve(HttpRequest& req, HttpResponse& res, const ServerConfig& co
 		req.setRouteType(RouteType::Upload);
 		return ;
 	}
-	if (checkErrorStatus(status, req, res))
+	if (checkErrorStatus(req, res))
 		return ;
 
 	if (!index.empty() && isAutoIndex(index, req, config))
@@ -63,7 +68,7 @@ void	Router::resolve(HttpRequest& req, HttpResponse& res, const ServerConfig& co
 		return ;
 	}
 
-	if (!index.empty() && isStaticFile(index, status, req))
+	if (!index.empty() && isStaticFile(index, req, res))
 	{
 		Logger::instance().log(INFO, "Router: Route type = StaticPage");
 
@@ -78,16 +83,16 @@ void	Router::resolve(HttpRequest& req, HttpResponse& res, const ServerConfig& co
 		req.setRouteType(RouteType::StaticPage);
 		return ;
 	}
-	if (checkErrorStatus(status, req, res))
+	if (checkErrorStatus(req, res))
 		return ;
 
-	if (isCgi(cgiPath, req.getResolvedPath(), status))
+	if (isCgi(cgiPath, req, res))
 	{
 		Logger::instance().log(INFO, "Router: Route type = CGI");
 		req.setRouteType(RouteType::CGI);
 		return ;
 	}
-	if (checkErrorStatus(status, req, res))
+	if (checkErrorStatus(req, res))
 		return ;
 
 	Logger::instance().log(WARNING, "Router: No matching route found (404)");
@@ -101,13 +106,12 @@ void	Router::computeResolvedPath(HttpRequest& req, const std::string& rawRoot)
 	req.setResolvedPath(joinPaths(rawRoot, uri));
 }
 
-bool	Router::checkErrorStatus(ResponseStatus::code status, HttpRequest& req, HttpResponse& res)
+bool	Router::checkErrorStatus(HttpRequest& req, HttpResponse& res)
 {
-	if (status != ResponseStatus::OK)
+	if (res.getStatusCode() != ResponseStatus::OK)
 	{
-		Logger::instance().log(DEBUG, "Router: Error status detected (" + toString(status) + ")");
+		Logger::instance().log(DEBUG, "Router: Error status detected (" + toString(res.getStatusCode()) + ")");
 		req.setRouteType(RouteType::Error);
-		res.setStatusCode(status);
 		return (true);
 	}
 	return (false);
@@ -115,12 +119,12 @@ bool	Router::checkErrorStatus(ResponseStatus::code status, HttpRequest& req, Htt
 
 bool	Router::isRedirect(HttpRequest& req, HttpResponse& res, const ServerConfig& config)
 {
-	const LocationConfig& location = config.mathLocation(req.getUri());
+	const LocationConfig& location = config.matchLocation(req.getUri());
 	const std::pair<int, std::string> redirect = location.getReturn();
 
 	if (redirect.first)
 	{
-		Logger::instance().log(DEBUG, "Router::isRedirect → " + redirect.second);
+		Logger::instance().log(DEBUG, "Router::isRedirect -> " + redirect.second);
 		req.getMeta().setRedirect(true);
 		res.setChunked(false);
 		res.addHeader("Location", redirect.second);
@@ -132,47 +136,66 @@ bool	Router::isRedirect(HttpRequest& req, HttpResponse& res, const ServerConfig&
 
 bool Router::isUpload(HttpRequest& req, HttpResponse& res, const ServerConfig& config)
 {
-	const LocationConfig& location = config.mathLocation(req.getUri());
-	const std::string uploadPath = location.getUploadPath();
+	const LocationConfig& location = config.matchLocation(req.getUri());
+	std::string uploadPath = location.getUploadPath();
 	const std::string& uri = req.getUri();
 
 	Logger::instance().log(DEBUG, "Router::isUpload comparing uri=" + uri + " uploadPath=" + uploadPath);
 
-	// Check if the URI matches the configured upload path
-	if (uri == uploadPath &&
-		(req.getMethod() == RequestMethod::POST || req.getMethod() == RequestMethod::PUT))
+	// Only POST or PUT
+	if (req.getMethod() != RequestMethod::POST && req.getMethod() != RequestMethod::PUT)
+		return (false);
+
+	// Uploads disenable
+	if (!location.getUploadEnabled())
 	{
-		// Upload location exists, but uploads are not enabled
-		if (!location.getUploadEnabled())
+		Logger::instance().log(WARNING, "Router::isUpload disabled for this location (403)");
+		res.setStatusCode(ResponseStatus::Forbidden);
+		req.setRouteType(RouteType::Error);
+		return (false);
+	}
+
+	// Normalize
+	std::string basePath = uploadPath;
+	if (basePath.empty())
+		return (false);
+
+	// Relative
+	if (basePath[0] != '/')
+		basePath = config.getRoot() + "/" + basePath;
+
+	// Match
+	if (uri.find(location.getPath()) == 0)
+	{
+		// if dir and writable
+		struct stat s;
+		if (stat(basePath.c_str(), &s) != 0 || !S_ISDIR(s.st_mode))
 		{
-			Logger::instance().log(WARNING, "Router::isUpload disabled for this location (403)");
+			Logger::instance().log(WARNING, "Router::isUpload directory missing: " + basePath);
+			res.setStatusCode(ResponseStatus::InternalServerError);
+			req.setRouteType(RouteType::Error);
+			return (false);
+		}
+		if (access(basePath.c_str(), W_OK) != 0)
+		{
+			Logger::instance().log(WARNING, "Router::isUpload path not writable: " + basePath);
 			res.setStatusCode(ResponseStatus::Forbidden);
 			req.setRouteType(RouteType::Error);
 			return (false);
 		}
 
-		// If the path exists but is not writable, also return 403
-		struct stat s;
-		if (stat(uploadPath.c_str(), &s) == 0)
-		{
-			if (access(uploadPath.c_str(), W_OK) != 0)
-			{
-				Logger::instance().log(WARNING , "Router::isUpload path not writable: " + uploadPath);
-				res.setStatusCode(ResponseStatus::Forbidden);
-				req.setRouteType(RouteType::Error);
-				return (false);
-			}
-		}
-
+		// OK
+		req.setRouteType(RouteType::Upload);
 		return (true);
 	}
 
 	return (false);
 }
 
+
 bool Router::isAutoIndex(const std::string& index, HttpRequest& req, const ServerConfig& config)
 {
-	const LocationConfig& location = config.mathLocation(req.getUri());
+	const LocationConfig& location = config.matchLocation(req.getUri());
 
 	bool autoIndexEnabled = config.getAutoindex();
 
@@ -206,7 +229,7 @@ bool Router::isAutoIndex(const std::string& index, HttpRequest& req, const Serve
 }
 
 
-bool	Router::isStaticFile(const std::string& index, ResponseStatus::code& status, HttpRequest& req)
+bool	Router::isStaticFile(const std::string& index, HttpRequest& req, HttpResponse& res)
 {
 	Logger::instance().log(DEBUG, "Router::isStaticFile start");
 	std::string path = req.getResolvedPath();
@@ -239,29 +262,29 @@ bool	Router::isStaticFile(const std::string& index, ResponseStatus::code& status
 		}
 
 		Logger::instance().log(WARNING, "Router::isStaticFile forbidden access to " + path);
-		status = ResponseStatus::Forbidden;
+		res.setStatusCode(ResponseStatus::Forbidden);
 	}
 	return (false);
 }
 
-bool	Router::isCgi(const std::string& cgiPath, const std::string resolvedPath, ResponseStatus::code& status)
+bool	Router::isCgi(const std::string& cgiPath, HttpRequest& req, HttpResponse& res)
 {
 	struct stat s;
 
-	if (stat(resolvedPath.c_str(), &s) != 0 || !S_ISREG(s.st_mode))
+	if (stat(req.getResolvedPath().c_str(), &s) != 0 || !S_ISREG(s.st_mode))
 		return (false);
 
-	if (access(resolvedPath.c_str(), X_OK) != 0)
+	if (access(req.getResolvedPath().c_str(), X_OK) != 0)
 	{
-		Logger::instance().log(WARNING, "Router::isCgi file not executable: " + resolvedPath);
-		status = ResponseStatus::Forbidden;
+		Logger::instance().log(WARNING, "Router::isCgi file not executable: " + req.getResolvedPath());
+		res.setStatusCode(ResponseStatus::Forbidden);
 		return (false);
 	}
 
-	if (!cgiPath.empty() && resolvedPath.find(cgiPath) != std::string::npos)
+	if (!cgiPath.empty() && req.getResolvedPath().find(cgiPath) != std::string::npos)
 		return (true);
 
-	return (hasCgiExtension(resolvedPath));
+	return (hasCgiExtension(req.getResolvedPath()));
 }
 
 bool	Router::hasCgiExtension(const std::string& path)

@@ -10,6 +10,7 @@ struct RouteType
 		AutoIndex,
 		Upload,
 		Redirect,
+		Delete,
 		Error
 	};
 };
