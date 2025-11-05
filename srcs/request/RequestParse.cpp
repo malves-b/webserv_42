@@ -103,8 +103,8 @@ void RequestParse::requestLine(const std::string& buffer, HttpRequest& req, cons
 		return ;
 	}
 
-	method(tokens[0], req, config);
 	uri(tokens[1], req);
+	method(tokens[0], req, config);
 
 	const std::string version = tokens[2];
 
@@ -362,7 +362,7 @@ void	RequestParse::checkMethod(HttpRequest& req, const ServerConfig& config)
 	if (req.getMethod() == RequestMethod::INVALID)
 		return ;
 
-	const LocationConfig& location = config.mathLocation(req.getUri());
+	const LocationConfig& location = config.matchLocation(req.getUri());
 	std::vector<RequestMethod::Method> methods = location.getMethods();
 	RequestMethod::Method m = req.getMethod();
 

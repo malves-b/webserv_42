@@ -155,6 +155,6 @@ std::string	AutoIndexHandler::getTemplatePath()
 	// Go up one directory (from /bin to project root)
 	path += "/assets/autoindex.html";
 
-	Logger::instance().log(DEBUG, "AutoIndexHandler: Resolved template path → " + path);
+	Logger::instance().log(DEBUG, "AutoIndexHandler: Resolved template path -> " + path);
 	return (path);
 }

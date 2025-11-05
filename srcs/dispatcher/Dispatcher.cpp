@@ -4,6 +4,7 @@
 #include <dispatcher/CgiHandler.hpp>
 #include <dispatcher/AutoIndexHandler.hpp>
 #include <dispatcher/UploadHandler.hpp>
+#include <dispatcher/DeleteHandler.hpp>
 #include <response/ResponseBuilder.hpp>
 #include <config/LocationConfig.hpp>
 #include <config/ServerConfig.hpp>
@@ -18,7 +19,7 @@ void	Dispatcher::dispatch(ClientConnection& client)
 	HttpResponse& res = client.getResponse();
 
 	const ServerConfig& config = client.getServerConfig();
-	const LocationConfig& location = config.mathLocation(req.getUri());
+	const LocationConfig& location = config.matchLocation(req.getUri());
 
 	Router::resolve(req, res, config);
 
@@ -36,7 +37,7 @@ void	Dispatcher::dispatch(ClientConnection& client)
 
 		case RouteType::Upload:
 			Logger::instance().log(INFO, "Dispatcher: Handling Upload");
-			UploadHandler::handle(req, res, location.getUploadPath());
+			UploadHandler::handle(req, res, location.getUploadPath(), config.getRoot());
 			break ;
 
 		case RouteType::StaticPage:
@@ -52,6 +53,11 @@ void	Dispatcher::dispatch(ClientConnection& client)
 		case RouteType::AutoIndex:
 			Logger::instance().log(INFO, "Dispatcher: Handling AutoIndex");
 			AutoIndexHandler::handle(req, res);
+			break ;
+
+		case RouteType::Delete:
+			Logger::instance().log(INFO, "Dispatcher: Handling Delete");
+			DeleteHandler::handle(req, res);
 			break ;
 
 		case RouteType::Error:

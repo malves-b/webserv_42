@@ -32,7 +32,7 @@ class ServerConfig
 		std::map<int, std::string> const&					getErrorPage(void) const;
 		bool												getAutoindex(void) const;
 		std::vector<LocationConfig> const&					getLocationConfig(void) const;
-		const LocationConfig&								mathLocation(const std::string& uri) const;
+		const LocationConfig&								matchLocation(const std::string& uri) const;
 
 		//mutators
 		void												setListenInterface(std::pair<std::string, std::string>);

@@ -3,6 +3,7 @@
 
 //webserv
 #include <init/ClientConnection.hpp>
+#include <config/LocationConfig.hpp>
 
 class Dispatcher
 {

@@ -160,6 +160,7 @@ bool	ResponseBuilder::errorPageConfig(const std::string& root, HttpResponse& res
 	const std::map<int, std::string>& errorsPages = config.getErrorPage();
 
 	std::map<int, std::string>::const_iterator it = errorsPages.find(statusCode);
+	Logger::instance().log(DEBUG, "ResponseBuilder: errorPageConfig -> " + it->second);
 	if (it == errorsPages.end())
 		return (false);
 

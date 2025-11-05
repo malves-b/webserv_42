@@ -128,7 +128,7 @@ void	ConfigParser::parseLocationBlock(std::vector<std::string> const& tokens, st
 				location.setUploadEnabled(false);
 			else
 				throw std::runtime_error("Invalid value for upload_enabled: must be 'on' or 'off'");
-			location.setUploadEnabled(true);
+			//location.setUploadEnabled(true); remove?
 			hasUploadEnabled = true;
 			i += 2;
 		}

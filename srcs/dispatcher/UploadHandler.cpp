@@ -8,7 +8,7 @@
 #include <utils/Logger.hpp>
 #include <utils/string_utils.hpp>
 
-void	UploadHandler::handle(HttpRequest& request, HttpResponse& response, std::string uploadPath)
+void	UploadHandler::handle(HttpRequest& request, HttpResponse& response, std::string uploadPath, const std::string& rootPath)
 {
 	Logger::instance().log(DEBUG, "[Started] UploadHandler::handle");
 	Logger::instance().log(DEBUG, "UploadHandler: Content-Type raw=[" + request.getHeader("Content-Type") + "]");
@@ -32,7 +32,7 @@ void	UploadHandler::handle(HttpRequest& request, HttpResponse& response, std::st
 		return ;
 	}
 
-	if (!parseMultipart(request.getBody(), contentType, uploadPath))
+	if (!parseMultipart(request.getBody(), contentType, uploadPath, rootPath))
 	{
 		Logger::instance().log(ERROR, "UploadHandler: failed to parse multipart body");
 		response.setStatusCode(ResponseStatus::BadRequest);
@@ -75,7 +75,7 @@ std::string	UploadHandler::extractBoundary(const std::string& contentType)
 }
 
 bool	UploadHandler::parseMultipart(const std::string& body,
-	const std::string& contentType, const std::string& uploadPath)
+	const std::string& contentType, const std::string& uploadPath, const std::string& rootPath)
 {
 	std::string boundaryValue = extractBoundary(contentType);
 
@@ -102,7 +102,7 @@ bool	UploadHandler::parseMultipart(const std::string& body,
 
 		std::string part = body.substr(pos, next - pos);
 
-		if (!parsePart(part, uploadPath))
+		if (!parsePart(part, uploadPath, rootPath))
 			return (false);
 
 		pos = next + 2 + delimiter.size();
@@ -119,7 +119,7 @@ bool	UploadHandler::parseMultipart(const std::string& body,
 	return (true);
 }
 
-bool	UploadHandler::parsePart(const std::string& part, const std::string& uploadPath)
+bool	UploadHandler::parsePart(const std::string& part, const std::string& uploadPath, const std::string& rootPath)
 {
 	const std::string sep = "\r\n\r\n";
 	size_t hEnd = part.find(sep);
@@ -175,20 +175,27 @@ bool	UploadHandler::parsePart(const std::string& part, const std::string& upload
 	if (filename.empty())
 		return (true);
 
-	saveFile(filename, uploadPath, data);
+	saveFile(filename, uploadPath, data, rootPath);
 	return (true);
 }
 
-void	UploadHandler::saveFile(const std::string& filename,
-	const std::string& uploadPath, const std::string& data)
+void UploadHandler::saveFile(const std::string& filename,
+	const std::string& uploadPath, const std::string& data, const std::string& rootPath)
 {
-	std::string path = uploadPath + "/" + filename;
-	std::ofstream out(path.c_str(), std::ios::binary);
+	std::string base = uploadPath;
 
+	if (base.size() > 0 && base[0] != '/')
+		base = rootPath + "/" + base;
+
+	std::string path = base + "/" + filename;
+
+	Logger::instance().log(DEBUG, "UploadHandler: resolved path -> " + path);
+
+	std::ofstream out(path.c_str(), std::ios::binary);
 	if (!out.is_open())
 	{
 		Logger::instance().log(ERROR, "UploadHandler: cannot open file for writing: " + path);
-		return ;
+		return;
 	}
 
 	out.write(data.c_str(), data.size());
@@ -196,3 +203,4 @@ void	UploadHandler::saveFile(const std::string& filename,
 
 	Logger::instance().log(DEBUG, "UploadHandler: saved file -> " + path);
 }
+

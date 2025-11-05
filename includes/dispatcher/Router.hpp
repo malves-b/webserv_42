@@ -13,10 +13,10 @@ class Router
 		Router& operator=(const Router& rhs); //blocked
 
 		static void	computeResolvedPath(HttpRequest& req, const std::string& rawRoot);
-		static bool	checkErrorStatus(ResponseStatus::code status, HttpRequest& req, HttpResponse& res);
+		static bool	checkErrorStatus(HttpRequest& req, HttpResponse& res);
 		static bool	isUpload(HttpRequest& req, HttpResponse& res, ServerConfig const& config);
-		static bool	isStaticFile(const std::string& index, ResponseStatus::code& status, HttpRequest& req);
-		static bool	isCgi(const std::string& cgiPath, const std::string resolvedPath, ResponseStatus::code& status);
+		static bool	isStaticFile(const std::string& index, HttpRequest& req, HttpResponse& res);
+		static bool	isCgi(const std::string& cgiPath, HttpRequest& req, HttpResponse& res);
 		static bool isAutoIndex(const std::string& index, HttpRequest& req, ServerConfig const& config);
 		static bool	hasCgiExtension(const std::string& path);
 		static bool	isRedirect(HttpRequest& req, HttpResponse& res, ServerConfig const& config);

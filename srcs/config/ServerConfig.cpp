@@ -89,7 +89,7 @@ void	ServerConfig::addLocation(LocationConfig& location)
 	this->_locations.push_back(location);
 }
 
-const LocationConfig&	ServerConfig::mathLocation(const std::string& uri) const
+const LocationConfig&	ServerConfig::matchLocation(const std::string& uri) const
 {
 	const LocationConfig* best = &_locations[0];
 	size_t bestLen = 0;
@@ -98,10 +98,10 @@ const LocationConfig&	ServerConfig::mathLocation(const std::string& uri) const
 	{
 		const std::string& locPath = _locations[i].getPath();
 		//Match
-		Logger::instance().log(DEBUG, "ServerConfig::mathLocation locPath -> " + locPath + " uri ->" + uri);
+		//Logger::instance().log(DEBUG, "ServerConfig::matchLocation locPath -> " + locPath + " uri ->" + uri);
 		if (locPath == uri)
 		{
-			Logger::instance().log(DEBUG, "ServerConfig::mathLocation found -> " + toString(i));
+			//Logger::instance().log(DEBUG, "ServerConfig::matchLocation found -> " + toString(i));
 			return _locations[i];
 		}
 
@@ -112,6 +112,6 @@ const LocationConfig&	ServerConfig::mathLocation(const std::string& uri) const
 			bestLen = locPath.size();
 		}
 	}
-	Logger::instance().log(DEBUG, "ServerConfig::mathLocation  best-> 0");
+	//Logger::instance().log(DEBUG, "ServerConfig::matchLocation  best-> 0");
 	return (*best);
 }
