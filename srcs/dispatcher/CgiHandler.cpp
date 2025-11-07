@@ -136,7 +136,7 @@ void	CgiHandler::setupRedirection(int* stdinPipe, int* stdoutPipe)
 void	CgiHandler::checkForFailure(pid_t pid, HttpResponse& response)
 {
 	int status = 0;
-	pid_t r = waitpid(pid, &status, WNOHANG);
+	pid_t r = waitpid(pid, &status, 0);
 
 	if (r == 0)
 	{
@@ -145,6 +145,11 @@ void	CgiHandler::checkForFailure(pid_t pid, HttpResponse& response)
 	}
 	if (r == -1)
 	{
+		if (errno == ECHILD)
+		{
+			Logger::instance().log(DEBUG, "CgiHandler: no child process remains (CGI finished)");
+			return ;
+		}
 		Logger::instance().log(WARNING, "CgiHandler: waitpid(WNOHANG) failed: " + std::string(strerror(errno)));
 		response.setStatusCode(ResponseStatus::InternalServerError);
 		return ;
