@@ -20,10 +20,10 @@ void	Router::resolve(HttpRequest& req, HttpResponse& res, const ServerConfig& co
 	}
 
 	// Match the location for this request URI
-	const LocationConfig& location = config.matchLocation(req.getUri());
-	const std::string index = location.getHasIndexFiles() ? location.getIndex() : "";
-	const std::string root  = location.getHasRoot() ? location.getRoot() : config.getRoot();
-	const std::string cgiPath = location.getCgiPath();
+	const LocationConfig& loc = config.matchLocation(req.getUri());
+	const std::string index = loc.getHasIndexFiles() ? loc.getIndex() : "";
+	const std::string root  = loc.getHasRoot() ? loc.getRoot() : config.getRoot();
+	const std::string cgiPath = loc.getCgiPath();
 
 	// Path traversal guard
 	if (hasParentTraversal(req.getUri()))
@@ -35,8 +35,7 @@ void	Router::resolve(HttpRequest& req, HttpResponse& res, const ServerConfig& co
 	}
 
 	// Build the resolved filesystem path
-	computeResolvedPath(req, root);
-	Logger::instance().log(DEBUG, "Router: Resolved path -> " + req.getResolvedPath());
+	computeResolvedPath(req, loc, config);
 
 	if (req.getParseError() != ResponseStatus::OK
 		&& req.getMethod() == RequestMethod::DELETE)
@@ -61,12 +60,22 @@ void	Router::resolve(HttpRequest& req, HttpResponse& res, const ServerConfig& co
 	if (checkErrorStatus(req, res))
 		return ;
 
-	if (!index.empty() && isAutoIndex(index, req, config))
+	if (index.empty() && isAutoIndex(index, req, config))
 	{
 		Logger::instance().log(INFO, "Router: Route type = AutoIndex");
 		req.setRouteType(RouteType::AutoIndex);
 		return ;
 	}
+
+	if (isCgi(loc, req, res))
+	{
+		Logger::instance().log(INFO, "Router: Route type = CGI");
+		req.setRouteType(RouteType::CGI);
+		return ;
+	}
+
+	if (checkErrorStatus(req, res))
+		return ;
 
 	if (!index.empty() && isStaticFile(index, req, res))
 	{
@@ -86,25 +95,53 @@ void	Router::resolve(HttpRequest& req, HttpResponse& res, const ServerConfig& co
 	if (checkErrorStatus(req, res))
 		return ;
 
-	if (isCgi(cgiPath, req, res))
-	{
-		Logger::instance().log(INFO, "Router: Route type = CGI");
-		req.setRouteType(RouteType::CGI);
-		return ;
-	}
-	if (checkErrorStatus(req, res))
-		return ;
-
 	Logger::instance().log(WARNING, "Router: No matching route found (404)");
 	res.setStatusCode(ResponseStatus::NotFound);
 	req.setRouteType(RouteType::Error);
 }
 
-void	Router::computeResolvedPath(HttpRequest& req, const std::string& rawRoot)
+void Router::computeResolvedPath(HttpRequest& req,
+								const LocationConfig& location,
+								const ServerConfig& config)
 {
-	const std::string& uri = req.getUri();
-	req.setResolvedPath(joinPaths(rawRoot, uri));
+	std::string uri = req.getUri();
+	std::string root;
+
+	if (!location.getCgiPath().empty())
+		root = location.getCgiPath();
+	else if (location.getHasRoot())
+		root = location.getRoot();
+	else
+		root = config.getRoot();
+
+	std::string locPath = location.getPath();
+	if (locPath.size() > 1 && locPath[locPath.size() - 1] == '/')
+		locPath.erase(locPath.size() - 1);
+
+	std::string relativePath = uri;
+	if (uri.find(locPath) == 0)
+		relativePath = uri.substr(locPath.length());
+	if (!relativePath.empty() && relativePath[0] == '/')
+		relativePath.erase(0, 1);
+
+	std::string resolved = joinPaths(root, relativePath);
+
+	struct stat s;
+	if (stat(resolved.c_str(), &s) == 0 && S_ISDIR(s.st_mode))
+	{
+		if (location.getHasIndexFiles())
+			resolved = joinPaths(resolved, location.getIndex());
+	}
+
+	req.setResolvedPath(resolved);
+
+	Logger::instance().log(DEBUG,
+		"Router::computeResolvedPath: uri=" + uri +
+		" locPath=" + locPath +
+		" root=" + root +
+		" -> resolved=" + resolved);
 }
+
 
 bool	Router::checkErrorStatus(HttpRequest& req, HttpResponse& res)
 {
@@ -254,9 +291,6 @@ bool	Router::isStaticFile(const std::string& index, HttpRequest& req, HttpRespon
 	{
 		if (access(path.c_str(), R_OK) == 0)
 		{
-			if (hasCgiExtension(path))
-				return (false);
-
 			req.setResolvedPath(path);
 			return (true);
 		}
@@ -267,11 +301,25 @@ bool	Router::isStaticFile(const std::string& index, HttpRequest& req, HttpRespon
 	return (false);
 }
 
-bool	Router::isCgi(const std::string& cgiPath, HttpRequest& req, HttpResponse& res)
+bool	Router::isCgi(const LocationConfig& loc, HttpRequest& req, HttpResponse& res)
 {
+	std::string cgiPath = loc.getCgiPath();
+
+	if (!hasCgiExtension(loc, req.getResolvedPath()))
+		return (false);
+
 	struct stat s;
 
 	if (stat(req.getResolvedPath().c_str(), &s) != 0 || !S_ISREG(s.st_mode))
+		return (false);
+
+	// if (cgiPath.empty())
+	// {
+	// 	Logger::instance().log(DEBUG, "Router::isCgi skipped: no CGI path configured");
+	// 	return (false);
+	// }
+
+	if (req.getResolvedPath().find(cgiPath) == std::string::npos)
 		return (false);
 
 	if (access(req.getResolvedPath().c_str(), X_OK) != 0)
@@ -281,27 +329,21 @@ bool	Router::isCgi(const std::string& cgiPath, HttpRequest& req, HttpResponse& r
 		return (false);
 	}
 
-	if (!cgiPath.empty() && req.getResolvedPath().find(cgiPath) != std::string::npos)
-		return (true);
+	Logger::instance().log(DEBUG, "Router::isCgi detected");
 
-	return (hasCgiExtension(req.getResolvedPath()));
+	return (true);
 }
 
-bool	Router::hasCgiExtension(const std::string& path)
+bool Router::hasCgiExtension(const LocationConfig& loc, const std::string& path)
 {
-	static const char* cgiExts[] = { ".cgi", ".pl", ".py" };
-	std::string::size_type dotPos = path.rfind('.');
+	std::string ext = getFileExtension(path);
+	const std::map<std::string, std::string>& cgiMap = loc.getCgiExtension();
 
-	if (dotPos == std::string::npos)
-		return (false);
-
-	std::string ext = path.substr(dotPos);
-	std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-
-	for (size_t i = 0; i < sizeof(cgiExts) / sizeof(cgiExts[0]); ++i)
+	std::map<std::string, std::string>::const_iterator it = cgiMap.find(ext);
+	if (it != cgiMap.end())
 	{
-		if (ext == cgiExts[i])
-			return (true);
+		return (true);
 	}
 	return (false);
 }
+

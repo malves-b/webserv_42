@@ -97,20 +97,19 @@ inline bool	startsWith(const std::string& s, const std::string& prefix)
 			std::equal(prefix.begin(), prefix.end(), s.begin());
 }
 
-inline static std::string	joinPaths(const std::string& root, const std::string& uri)
+inline static std::string	joinPaths(const std::string& base, const std::string& sub)
 {
-	std::string result = root;
+	if (base.empty())
+		return (sub);
+	if (sub.empty())
+		return (base);
 
-	if (!result.empty() && result[result.size() - 1] == '/')
-		result.erase(result.size() - 1);
-
-	if (uri.empty())
-		return (result);
-
-	if (uri[0] == '/')
-		return (result + uri);
-
-	return (result + "/" + uri);
+	if (base[base.size() - 1] == '/' && sub[0] == '/')
+		return (base + sub.substr(1));
+	else if (base[base.size() - 1] != '/' && sub[0] != '/')
+		return (base + '/' + sub);
+	else
+		return (base + sub);
 }
 
 inline static bool	hasParentTraversal(const std::string& s)
@@ -138,6 +137,19 @@ inline static std::string	trim_copy(const std::string& s)
 		b--;
 
 	return (s.substr(a, b - a));
+}
+
+inline static std::string	getFileExtension(const std::string& path)
+{
+	std::string::size_type dotPos = path.find_last_of('.');
+	if (dotPos == std::string::npos)
+		return ("");
+
+	std::string::size_type slashPos = path.find_last_of('/');
+	if (slashPos != std::string::npos && dotPos < slashPos)
+		return ("");
+
+	return (path.substr(dotPos));
 }
 
 #endif //STRING_UTILS_HPP
