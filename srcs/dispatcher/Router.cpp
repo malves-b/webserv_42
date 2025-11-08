@@ -88,8 +88,7 @@ void	Router::resolve(HttpRequest& req, HttpResponse& res, const ServerConfig& co
 	if (checkErrorStatus(req, res))
 		return ;
 
-	if (req.getParseError() != ResponseStatus::OK
-		&& req.getMethod() == RequestMethod::DELETE)
+	if (req.getMethod() == RequestMethod::DELETE)
 	{
 		req.setRouteType(RouteType::Delete);
 		return ;

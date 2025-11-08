@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
+#include <iomanip>
 
 inline std::string	lTrim(const std::string& str)
 {
@@ -150,6 +151,19 @@ inline static std::string	getFileExtension(const std::string& path)
 		return ("");
 
 	return (path.substr(dotPos));
+}
+
+inline static std::string	uriEncode(const std::string& s)
+{
+	std::ostringstream oss;
+	for (size_t i = 0; i < s.size(); ++i) {
+		unsigned char c = s[i];
+		if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~')
+			oss << c;
+		else
+			oss << '%' << std::uppercase << std::hex << std::setw(2) << std::setfill('0') << int(c);
+	}
+	return oss.str();
 }
 
 #endif //STRING_UTILS_HPP

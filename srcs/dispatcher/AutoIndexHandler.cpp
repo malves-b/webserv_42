@@ -63,6 +63,14 @@ void	AutoIndexHandler::handle(HttpRequest& req, HttpResponse& res)
 		content += "<td><a href=\"" + uri + name + (isDir ? "/" : "") + "\">" + name + (isDir ? "/" : "") + "</a></td>";
 		content += "<td>" + std::string(dateBuf) + "</td>";
 		content += "<td class=\"size\">" + sizeStr + "</td>";
+
+		if (!isDir) {
+			std::string encoded = uriEncode(name);
+			content += "<td><button onclick=\"deleteFile('" + uri + encoded + "')\">Delete</button></td>";
+		} else {
+			content += "<td>-</td>";
+		}
+
 		content += "</tr>\n";
 	}
 
