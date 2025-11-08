@@ -1,14 +1,19 @@
-#!/usr/bin/env python3
-import os, cgi, time
+#!/usr/bin/python3
+import os, cgi
 
 print("Content-Type: text/html\r\n\r\n")
-print("<h1>Echo CGI</h1>")
-print(f"<p>Method: {os.environ.get('REQUEST_METHOD')}</p>")
-print(f"<p>Query: {os.environ.get('QUERY_STRING')}</p>")
+print("<html><body><h2>Python CGI Echo</h2>")
+print("<p><b>Query string:</b> {}</p>".format(os.environ.get("QUERY_STRING", "")))
 
 form = cgi.FieldStorage()
 if form:
-    print("<h2>POST/FORM data:</h2>")
-    # time.sleep(100.0)
+    print("<ul>")
     for key in form.keys():
-        print(f"<p>{key} = {form.getvalue(key)}</p>")
+        print(f"<li>{key}: {form.getvalue(key)}</li>")
+    print("</ul>")
+
+print("<hr><p>Environment Variables:</p><pre>")
+for k, v in sorted(os.environ.items()):
+    print(f"{k}={v}")
+print("""<a href="/">Back to Home</a>""")
+print("</pre></body></html>")

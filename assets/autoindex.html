@@ -42,6 +42,18 @@
     a:hover {
       color: #ff00ff;
     }
+    button {
+      background: #ff00ff;
+      color: #fff;
+      border: none;
+      padding: 5px 10px;
+      font-weight: bold;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    button:hover {
+      background: #cc00cc;
+    }
     hr {
       border: 0;
       border-top: 2px dashed #999;
@@ -64,6 +76,7 @@
           <th>Name</th>
           <th>Last Modified</th>
           <th>Size</th>
+          <th>Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -74,5 +87,22 @@
     <hr>
     <address>{SERVER_INFO}</address>
   </div>
+
+  <script>
+    async function deleteFile(path) {
+      if (!confirm("Delete " + path + " ?")) return;
+      try {
+        const res = await fetch(path, { method: 'DELETE' });
+        if (res.ok) {
+          alert("Deleted successfully!");
+          location.reload();
+        } else {
+          alert("Failed to delete (" + res.status + ")");
+        }
+      } catch (e) {
+        alert("Error: " + e);
+      }
+    }
+  </script>
 </body>
 </html>
