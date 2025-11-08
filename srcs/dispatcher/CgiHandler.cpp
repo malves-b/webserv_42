@@ -58,6 +58,8 @@ char**	CgiHandler::buildEnvp(HttpRequest& request)
 	env.push_back("GATEWAY_INTERFACE=CGI/1.1");
 	env.push_back("SERVER_SOFTWARE=WebServinho/1.0");
 
+	env.push_back("REDIRECT_STATUS=200"); //php-cgi
+
 	std::string host = request.getHeader("Host");
 	if (host != "Host")
 	{
