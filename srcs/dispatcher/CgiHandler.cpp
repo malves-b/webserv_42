@@ -135,45 +135,45 @@ void	CgiHandler::setupRedirection(int* stdinPipe, int* stdoutPipe)
 	close(stdoutPipe[1]);
 }
 
-void	CgiHandler::checkForFailure(pid_t pid, HttpResponse& response)
-{
-	int status = 0;
-	pid_t r = waitpid(pid, &status, 0);
+// void	CgiHandler::checkForFailure(pid_t pid, HttpResponse& response)
+// {
+// 	int status = 0;
+// 	pid_t r = waitpid(pid, &status, 0);
 
-	if (r == 0)
-	{
-		// still running; caller decide (timeout, etc.)
-		return ;
-	}
-	if (r == -1)
-	{
-		if (errno == ECHILD)
-		{
-			Logger::instance().log(DEBUG, "CgiHandler: no child process remains (CGI finished)");
-			return ;
-		}
-		Logger::instance().log(WARNING, "CgiHandler: waitpid(WNOHANG) failed: " + std::string(strerror(errno)));
-		response.setStatusCode(ResponseStatus::InternalServerError);
-		return ;
-	}
-	if (WIFEXITED(status))
-	{
-		int exitCode = WEXITSTATUS(status);
-		if (exitCode != 0)
-		{
-			Logger::instance().log(ERROR, "CgiHandler: CGI exited with code " + toString(exitCode));
-			response.setStatusCode(ResponseStatus::InternalServerError);
-		}
-		return ;
-	}
-	if (WIFSIGNALED(status))
-	{
-		int sig = WTERMSIG(status);
-		Logger::instance().log(ERROR, "CgiHandler: CGI terminated by signal " + toString(sig));
-		response.setStatusCode(ResponseStatus::InternalServerError);
-		return ;
-	}
-}
+// 	if (r == 0)
+// 	{
+// 		// still running; caller decide (timeout, etc.)
+// 		return ;
+// 	}
+// 	if (r == -1)
+// 	{
+// 		if (errno == ECHILD)
+// 		{
+// 			Logger::instance().log(DEBUG, "CgiHandler: no child process remains (CGI finished)");
+// 			return ;
+// 		}
+// 		Logger::instance().log(WARNING, "CgiHandler: waitpid(WNOHANG) failed: " + std::string(strerror(errno)));
+// 		response.setStatusCode(ResponseStatus::InternalServerError);
+// 		return ;
+// 	}
+// 	if (WIFEXITED(status))
+// 	{
+// 		int exitCode = WEXITSTATUS(status);
+// 		if (exitCode != 0)
+// 		{
+// 			Logger::instance().log(ERROR, "CgiHandler: CGI exited with code " + toString(exitCode));
+// 			response.setStatusCode(ResponseStatus::InternalServerError);
+// 		}
+// 		return ;
+// 	}
+// 	if (WIFSIGNALED(status))
+// 	{
+// 		int sig = WTERMSIG(status);
+// 		Logger::instance().log(ERROR, "CgiHandler: CGI terminated by signal " + toString(sig));
+// 		response.setStatusCode(ResponseStatus::InternalServerError);
+// 		return ;
+// 	}
+// }
 
 void	CgiHandler::handle(HttpRequest& request, HttpResponse& response)
 {
@@ -316,11 +316,20 @@ void	CgiHandler::handle(HttpRequest& request, HttpResponse& response)
 			done = true;
 		}
 
-		checkForFailure(pid, response); // WNOHANG
+		int st;
+		pid_t res = waitpid(pid, &st, WNOHANG);
+		if (res > 0)
+			done = true;
 	}
 
-	close(stdoutPipe[0]);
+	// for (;;)
+	// {
+	// 	ssize_t n = read(stdoutPipe[0], buffer, sizeof(buffer));
+	// 	if (n <= 0) break;
+	// 	output.append(buffer, n);
+	// }
 
+	close(stdoutPipe[0]);
 	int status = 0;
 	waitpid(pid, &status, WNOHANG);
 
