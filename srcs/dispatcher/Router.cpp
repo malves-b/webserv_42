@@ -37,19 +37,22 @@ void	Router::resolve(HttpRequest& req, HttpResponse& res, const ServerConfig& co
 	// Build the resolved filesystem path
 	computeResolvedPath(req, loc, config);
 
-	if (req.getParseError() != ResponseStatus::OK
-		&& req.getMethod() == RequestMethod::DELETE)
-	{
-		req.setRouteType(RouteType::Delete);
-		return ;
-	}
-
 	if (isRedirect(req, res, config))
 	{
 		Logger::instance().log(INFO, "Router: Route type = Redirect");
 		req.setRouteType(RouteType::Redirect);
 		return ;
 	}
+
+	if (isCgi(loc, req, res))
+	{
+		Logger::instance().log(INFO, "Router: Route type = CGI");
+		req.setRouteType(RouteType::CGI);
+		return ;
+	}
+
+	if (checkErrorStatus(req, res))
+		return ;
 
 	if (isUpload(req, res, config))
 	{
@@ -66,16 +69,6 @@ void	Router::resolve(HttpRequest& req, HttpResponse& res, const ServerConfig& co
 		req.setRouteType(RouteType::AutoIndex);
 		return ;
 	}
-
-	if (isCgi(loc, req, res))
-	{
-		Logger::instance().log(INFO, "Router: Route type = CGI");
-		req.setRouteType(RouteType::CGI);
-		return ;
-	}
-
-	if (checkErrorStatus(req, res))
-		return ;
 
 	if (!index.empty() && isStaticFile(index, req, res))
 	{
@@ -94,6 +87,13 @@ void	Router::resolve(HttpRequest& req, HttpResponse& res, const ServerConfig& co
 	}
 	if (checkErrorStatus(req, res))
 		return ;
+
+	if (req.getParseError() != ResponseStatus::OK
+		&& req.getMethod() == RequestMethod::DELETE)
+	{
+		req.setRouteType(RouteType::Delete);
+		return ;
+	}
 
 	Logger::instance().log(WARNING, "Router: No matching route found (404)");
 	res.setStatusCode(ResponseStatus::NotFound);
@@ -187,8 +187,8 @@ bool Router::isUpload(HttpRequest& req, HttpResponse& res, const ServerConfig& c
 	if (!location.getUploadEnabled())
 	{
 		Logger::instance().log(WARNING, "Router::isUpload disabled for this location (403)");
-		res.setStatusCode(ResponseStatus::Forbidden);
-		req.setRouteType(RouteType::Error);
+		// res.setStatusCode(ResponseStatus::Forbidden);
+		// req.setRouteType(RouteType::Error);
 		return (false);
 	}
 
