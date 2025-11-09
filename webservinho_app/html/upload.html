@@ -55,8 +55,8 @@
       This page is used to test file upload functionality in <em>webservinho</em>.
     </p>
 
-    <form action="/uploads" method="POST" enctype="multipart/form-data">
-      <input type="file" name="file"><br><br>
+    <form id="upload-form" action="/uploads" method="POST" enctype="multipart/form-data">
+      <input type="file" name="file" id="file-input" required><br><br>
       <input type="submit" value="Upload">
     </form>
 
@@ -64,8 +64,18 @@
       <p>
         Uploaded files should appear under the <a href="/uploads">/uploads</a> directory if autoindex is enabled.
       </p>
-      <a href="/">⬅ Back to Home</a>
+      <a href="/"> Back to Home</a>
     </div>
   </div>
+
+  <script>
+    document.getElementById("upload-form").addEventListener("submit", function(e) {
+      const fileInput = document.getElementById("file-input");
+      if (!fileInput.files.length) {
+        e.preventDefault();
+        alert("Please select a file before uploading!");
+      }
+    });
+  </script>
 </body>
 </html>
