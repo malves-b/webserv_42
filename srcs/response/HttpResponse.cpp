@@ -1,4 +1,5 @@
 #include "response/HttpResponse.hpp"
+#include <utils/Logger.hpp>
 
 HttpResponse::HttpResponse()
 {
@@ -64,6 +65,7 @@ void	HttpResponse::reset(void)
 	this->_headers.clear();
 	this->_body.clear();
 	this->_chunked = false;
+	Logger::instance().log(DEBUG, "HttpResponse::reset complete");
 }
 
 ResponseStatus::code	HttpResponse::getStatusCode() const

@@ -1,61 +1,74 @@
 #include <iostream>
 #include <exception>
 #include <cstdlib>
-#include <request/RequestParse.hpp>
-#include <request/RequestState.hpp>
+#include <vector>
 #include <utils/string_utils.hpp>
 #include <utils/Logger.hpp>
 #include <response/ResponseStatus.hpp>
+#include <request/RequestParse.hpp>
+#include <request/RequestMethod.hpp>
+#include <config/ServerConfig.hpp>
+#include <config/LocationConfig.hpp>
 
-void	RequestParse::handleRawRequest(const std::string& chunk, HttpRequest& request)
+void	RequestParse::handleRawRequest(const std::string& chunk, HttpRequest& req, const ServerConfig& config)
 {
-	request.appendRaw(chunk);
-	std::string& rawRequest = request.getRaw();
-
-	std::string& buffer = request.getBuffer();
+	req.appendRaw(chunk);
+	std::string& rawRequest = req.getRaw();
+	std::string& buffer = req.getBuffer();
 	std::size_t i = 0;
 
-	if (request.getState() == RequestState::Complete)
+	if (req.getState() == RequestState::Complete)
 		return ;
 
-	while (i < rawRequest.size())
+	while (i < rawRequest.size() && req.getState() != RequestState::Complete)
 	{
-		if (request.getState() < RequestState::Body)
+		if (req.getState() < RequestState::Body)
 		{
 			char ch = rawRequest[i];
+
 			if (ch == '\r')
 			{
 				if (i + 1 >= rawRequest.size())
 					break ;
+
 				if (rawRequest[i + 1] != '\n')
 				{
-					request.setParseError(ResponseStatus::BadRequest);
+					req.setParseError(ResponseStatus::BadRequest);
 					return ;
 				}
-				if (request.getState() == RequestState::RequestLine)
+
+				if (req.getState() == RequestState::RequestLine)
 				{
 					if (!buffer.empty())
-						requestLine(buffer, request);
-					request.setRequestState(RequestState::Headers);
+						requestLine(buffer, req, config);
+
+					if (req.getParseError() != ResponseStatus::OK)
+					{
+						req.setRequestState(RequestState::Complete);
+						return ;
+					}
+
+					req.setRequestState(RequestState::Headers);
 				}
 				else
 				{
 					if (buffer.empty())
 					{
-						if (request.getMeta().getContentLength() == -1 && !request.getMeta().isChunked())
-							request.setRequestState(RequestState::Complete);
+						if (req.getMeta().getContentLength() == 0 && !req.getMeta().isChunked())
+							req.setRequestState(RequestState::Complete);
 						else
-							request.setRequestState(RequestState::Body);
-						request.clearBuffer();
+							req.setRequestState(RequestState::Body);
+
+						req.clearBuffer();
 						i += 2;
-						break ;
+						continue ;
 					}
 					else
 					{
-						headers(buffer, request);
+						headers(buffer, req, config.getClientMaxBodySize());
 					}
 				}
-				request.clearBuffer();
+				req.clearBuffer();
 				i += 2;
 				continue ;
 			}
@@ -63,153 +76,232 @@ void	RequestParse::handleRawRequest(const std::string& chunk, HttpRequest& reque
 			++i;
 			continue ;
 		}
-		if (request.getState() == RequestState::Body)
+
+		if (req.getState() == RequestState::Body)
 		{
-			body(rawRequest[i], request);
+			body(rawRequest[i], req, config.getClientMaxBodySize());
 			++i;
 		}
 	}
-	if (i > 0)
-		request.getRaw().erase(0, i);
 
+	if (i > 0)
+		req.getRaw().erase(0, i);
+
+	Logger::instance().log(DEBUG,
+		"RequestParse::handleRawRequest consumed=" + toString(i) + " remaining=" + toString(rawRequest.size()));
 }
 
-void	RequestParse::requestLine(const std::string& buffer, HttpRequest& request)
+void RequestParse::requestLine(const std::string& buffer, HttpRequest& req, const ServerConfig& config)
 {
+	Logger::instance().log(DEBUG, "[Started] RequestParse::reqLine");
+
 	const std::vector<std::string> tokens = split(buffer, " ");
 
 	if (tokens.size() != 3)
 	{
-		request.setParseError(ResponseStatus::BadRequest);
+		req.setParseError(ResponseStatus::BadRequest);
 		return ;
 	}
 
-	method(tokens[0], request);
-	uri(tokens[1], request);
+	uri(tokens[1], req);
+	method(tokens[0], req, config);
 
 	const std::string version = tokens[2];
-	if (version.size() < 8 || version.substr(0, 5) != "HTTP/"
-		|| version.find('.') == std::string::npos)
+
+	if (version.size() < 8 || version.substr(0, 5) != "HTTP/" || version.find('.') == std::string::npos)
 	{
-		request.setParseError(ResponseStatus::BadRequest);
+		req.setParseError(ResponseStatus::BadRequest);
 		return ;
 	}
 
 	std::vector<std::string> parts = split(version.substr(5), ".");
 	if (parts.size() != 2)
 	{
-		request.setParseError(ResponseStatus::BadRequest);
+		req.setParseError(ResponseStatus::BadRequest);
 		return ;
 	}
 
 	if (parts[0] != "1" || parts[1] != "1")
 	{
-		request.setParseError(ResponseStatus::HttpVersionNotSupported);
+		req.setParseError(ResponseStatus::HttpVersionNotSupported);
 		return ;
 	}
 
-	request.setMajor(std::atoi(parts[0].c_str()));
-	request.setMinor(std::atoi(parts[1].c_str()));
+	req.setMajor(std::atoi(parts[0].c_str()));
+	req.setMinor(std::atoi(parts[1].c_str()));
+
+	Logger::instance().log(DEBUG, "[Finished] RequestParse::reqLine");
 }
 
-void	RequestParse::method(const std::string& method, HttpRequest& request)
+void	RequestParse::method(const std::string& method, HttpRequest& req, const ServerConfig& config)
 {
-	//TODO config
 	if (method == "GET")
-		request.setMethod(RequestMethod::GET);
+		req.setMethod(RequestMethod::GET);
 	else if (method == "POST")
-		request.setMethod(RequestMethod::POST);
+		req.setMethod(RequestMethod::POST);
 	else if (method == "DELETE")
-		request.setMethod(RequestMethod::DELETE);
+		req.setMethod(RequestMethod::DELETE);
 	else if (method == "PUT")
-		request.setMethod(RequestMethod::PUT);
+		req.setMethod(RequestMethod::PUT);
 	else
 	{
-		request.setMethod(RequestMethod::INVALID);
-		request.setParseError(ResponseStatus::MethodNotAllowed);
+		req.setMethod(RequestMethod::INVALID);
+		req.setParseError(ResponseStatus::MethodNotAllowed);
 	}
+
+	checkMethod(req, config);
 }
 
-void	RequestParse::uri(const std::string str, HttpRequest& request)
+void	RequestParse::uri(const std::string str, HttpRequest& req)
 {
 	std::string uri = str;
 	std::string::size_type queryPos = uri.find('?');
+
 	if (queryPos != std::string::npos)
 		uri = str.substr(0, queryPos);
-	request.setUri(uri);
-	request.setQueryString(extractQueryString(str));
+
+	if (uri.length() > MAX_URI)
+	{
+		Logger::instance().log(ERROR, "RequestParse::uri URI too long");
+		req.setParseError(ResponseStatus::UriTooLong);
+		req.setRequestState(RequestState::Complete);
+		return ;
+	}
+
+	req.setUri(uri);
+	req.setQueryString(extractQueryString(str));
 }
 
-void	RequestParse::headers(const std::string& buffer, HttpRequest& request)
+void	RequestParse::headers(const std::string& buffer, HttpRequest& req, std::size_t maxBodySize)
 {
+	Logger::instance().log(DEBUG, "[Started] RequestParse::headers");
+
 	std::string::size_type pos = buffer.find(":");
 
 	if (pos == std::string::npos)
 	{
-		request.setParseError(ResponseStatus::BadRequest);
+		req.setParseError(ResponseStatus::BadRequest);
+		req.setRequestState(RequestState::Complete);
+		Logger::instance().log(ERROR, "RequestParse::headers BadRequest (missing colon)");
 		return ;
 	}
 
 	std::string key = toLower(trim(buffer.substr(0, pos)));
-	std::string value = trim((pos + 1 < buffer.size()
-							? buffer.substr(pos + 1) : std::string()));
+	std::string value = trim((pos + 1 < buffer.size()) ? buffer.substr(pos + 1) : std::string());
+
+	if (buffer.length() > MAX_HEADER_LINE)
+	{
+		req.setParseError(ResponseStatus::PayloadTooLarge);
+		req.setRequestState(RequestState::Complete);
+		Logger::instance().log(ERROR, "RequestParse::headers PayloadTooLarge");
+		return ;
+	}
 
 	if (key == "host")
-		request.getMeta().setHost(value);
+		req.getMeta().setHost(value);
 	else if (key == "content-length")
-		request.getMeta().setContentLength(std::atoi(value.c_str()));
+	{
+		long size = std::atol(value.c_str());
+
+		if (isGreaterThanMaxBodySize(size, maxBodySize))
+		{
+			req.setParseError(ResponseStatus::PayloadTooLarge);
+			req.setRequestState(RequestState::Complete);
+			Logger::instance().log(ERROR, "RequestParse::headers Content-Length exceeds limit");
+			return ;
+		}
+		req.getMeta().setContentLength(size);
+	}
 	else if (key == "transfer-encoding")
-		request.getMeta().setChunked(true);
+	{
+		std::string v = toLower(value);
+		if (v.find("chunked") != std::string::npos)
+			req.getMeta().setChunked(true);
+		else if (v != "identity")
+		{
+			req.setParseError(ResponseStatus::BadRequest);
+			req.setRequestState(RequestState::Complete);
+			Logger::instance().log(ERROR, "RequestParse::headers Unsupported transfer-encoding: " + value);
+			return ;
+		}
+	}
 	else if (key == "connection")
-		request.getMeta().setConnectionClose(toLower(value) == "close");
+		req.getMeta().setConnectionClose(toLower(value) == "close");
 	else if (key == "expect")
 	{
 		if (toLower(value) == "100-continue")
-			request.getMeta().setExpectContinue(true);
+		{
+			req.getMeta().setExpectContinue(true);
+			Logger::instance().log(DEBUG, "RequestParse::headers Expect: 100-continue");
+		}
 		else
-			request.setParseError(ResponseStatus::BadRequest);
+		{
+			req.setParseError(ResponseStatus::BadRequest);
+			req.setRequestState(RequestState::Complete);
+			Logger::instance().log(ERROR, "RequestParse::headers BadRequest on Expect header");
+			return ;
+		}
 	}
-	request.addHeader(key, value);
+
+	req.addHeader(key, value);
+	Logger::instance().log(DEBUG, "[Finished] RequestParse::headers");
 }
 
-void	RequestParse::body(char c, HttpRequest& request)
+void	RequestParse::body(char c, HttpRequest& req, std::size_t maxBodySize)
 {
-	if (!request.getMeta().isChunked())
+	if (!req.getMeta().isChunked())
 	{
-		request.appendBody(c);
-		if ((int) request.getBody().size() >= request.getMeta().getContentLength())
-			request.setRequestState(RequestState::Complete);
+		if ((req.getBody().size() & 0x3FFF) == 0) // log every ~16KB
+		{
+			Logger::instance().log(DEBUG,
+				"Body progress: " + toString(req.getBody().size()) + "/" +
+				toString(req.getMeta().getContentLength()));
+		}
+
+		req.appendBody(c);
+
+		if (req.getBody().size() >= req.getMeta().getContentLength())
+			req.setRequestState(RequestState::Complete);
 	}
 	else
 	{
-		bodyChunked(c, request);
+		bodyChunked(c, req, maxBodySize);
 	}
 }
 
-void	RequestParse::bodyChunked(char c, HttpRequest& request)
+void	RequestParse::bodyChunked(char c, HttpRequest& req, std::size_t maxBodySize)
 {
-	std::string& buffer = request.getBuffer();
-	std::string& chunkBuffer = request.getChunkBuffer();
+	std::string& buffer = req.getBuffer();
+	std::string& chunkBuffer = req.getChunkBuffer();
 
-	if (request.isExpectingChunkSeparator())
+	if (isGreaterThanMaxBodySize(req.getCurrentChunkSize(), maxBodySize))
+	{
+		req.setParseError(ResponseStatus::PayloadTooLarge);
+		req.setRequestState(RequestState::Complete);
+		return ;
+	}
+
+	if (req.isExpectingChunkSeparator())
 	{
 		buffer.push_back(c);
+
 		if (buffer.size() >= 2 &&
 			buffer[buffer.size() - 2] == '\r' &&
 			buffer[buffer.size() - 1] == '\n')
 		{
-			request.clearBuffer();
-			request.setExpectingChunkSeparator(false);
-			request.setParsingChunkSize(true);
+			req.clearBuffer();
+			req.setExpectingChunkSeparator(false);
+			req.setParsingChunkSize(true);
 		}
 		else if (buffer.size() > 2)
 		{
-			request.setParseError(ResponseStatus::BadRequest);
-			request.setRequestState(RequestState::Complete);
+			req.setParseError(ResponseStatus::BadRequest);
+			req.setRequestState(RequestState::Complete);
 		}
 		return ;
 	}
-	if (request.isParsingChunkSize())
+
+	if (req.isParsingChunkSize())
 	{
 		buffer.push_back(c);
 
@@ -217,46 +309,68 @@ void	RequestParse::bodyChunked(char c, HttpRequest& request)
 			buffer[buffer.size() - 2] == '\r' &&
 			buffer[buffer.size() - 1] == '\n')
 		{
-
 			int size = stringToHex(buffer.substr(0, buffer.size() - 2));
-			std::cout << "size: " <<  size << std::endl;
-			request.clearBuffer();
+			req.clearBuffer();
+
 			if (size < 0)
 			{
-				request.setParseError(ResponseStatus::BadRequest);
-				request.setRequestState(RequestState::Complete);
+				req.setParseError(ResponseStatus::BadRequest);
+				req.setRequestState(RequestState::Complete);
 				return ;
 			}
 			if (size == 0)
 			{
-				request.setRequestState(RequestState::Complete);
+				req.setRequestState(RequestState::Complete);
 				return ;
 			}
-			request.setCurrentChunkSize(size);
-			request.setParsingChunkSize(false);
+			req.setCurrentChunkSize(size);
+			req.setParsingChunkSize(false);
 		}
 		return ;
 	}
 
 	chunkBuffer.push_back(c);
 
-	if ( (int) chunkBuffer.size() == request.getCurrentChunkSize())
+	if ((int)chunkBuffer.size() == req.getCurrentChunkSize())
 	{
-		request.appendBody(chunkBuffer);
-		request.clearChunkBuffer();
-		request.setExpectingChunkSeparator(true);
+		req.appendBody(chunkBuffer);
+		req.clearChunkBuffer();
+		req.setExpectingChunkSeparator(true);
 	}
 }
 
 std::string	RequestParse::extractQueryString(const std::string uri)
 {
-	std::string::size_type query_pos = uri.find('?');
-	if (query_pos != std::string::npos)
+	std::string::size_type queryPos = uri.find('?');
+
+	if (queryPos != std::string::npos)
+		return (uri.substr(queryPos + 1));
+
+	return ("");
+}
+
+bool	RequestParse::isGreaterThanMaxBodySize(std::size_t size, std::size_t maxBodySize)
+{
+	if (size > maxBodySize)
+		return (true);
+
+	return (false);
+}
+
+void	RequestParse::checkMethod(HttpRequest& req, const ServerConfig& config)
+{
+	if (req.getMethod() == RequestMethod::INVALID)
+		return ;
+
+	const LocationConfig& location = config.matchLocation(req.getUri());
+	std::vector<RequestMethod::Method> methods = location.getMethods();
+	RequestMethod::Method m = req.getMethod();
+
+	for (size_t i = 0; i < methods.size(); ++i)
 	{
-		return uri.substr(query_pos + 1);
-		uri.substr(0, query_pos);
+		if (methods[i] == m)
+			return ;
 	}
-	else
-	{
-		return "";}
+
+	req.setParseError(ResponseStatus::MethodNotAllowed);
 }

@@ -1,15 +1,16 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 import os, sys
 
-method = os.environ.get("REQUEST_METHOD", "GET")
-print("Content-Type: application/json\r\n\r\n")
+method = os.environ.get("REQUEST_METHOD", "UNKNOWN")
 
-if method == "GET":
-    print('{"result": "GET received"}')
-elif method == "POST":
-    body = sys.stdin.read()
-    print(f'{{"result": "POST received", "body": "{body}"}}')
+print("Content-Type: text/plain\r\n\r\n")
+print(f"Method received: {method}")
+
+if method == "POST":
+    content_length = int(os.environ.get("CONTENT_LENGTH", 0))
+    data = sys.stdin.read(content_length) if content_length > 0 else ""
+    print(f"\nPOST data: {data}")
 elif method == "DELETE":
-    print('{"result": "DELETE received"}')
+    print("\nDELETE method received successfully.")
 else:
-    print(f'{{"error": "Unsupported method {method}"}}')
+    print("\nThis endpoint supports GET, POST, and DELETE.")

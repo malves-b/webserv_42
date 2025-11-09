@@ -2,27 +2,90 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>webservinho Test Site</title>
+  <title>Index - Webservinho 1.0</title>
   <style>
-    body { font-family: "Comic Sans MS", Arial, sans-serif; background: #b7d1f8; text-align: center; }
-    .wrapper { background: #fff; padding: 20px; margin: 20px auto; width: 800px; box-shadow: 0 0 0 4px #000, 0 0 0 8px #ff00ff; }
+    body {
+      font-family: "Comic Sans MS", Arial, sans-serif;
+      background: url("/img/90s_bg.gif") repeat;
+      color: #000;
+      text-align: center;
+    }
+    .wrapper {
+      background: #fff;
+      padding: 20px;
+      margin: 20px auto;
+      width: 800px;
+      border: 6px double #000;
+      box-shadow: 0 0 0 4px #000, 0 0 0 8px #ff00ff;
+    }
     h1 { margin-top: 0; }
     ul { list-style: none; padding: 0; }
     li { margin: 6px 0; }
     a { text-decoration: none; font-weight: bold; color: #000; }
-    .section { margin-top: 20px; border-top: 2px dashed #999; padding-top: 10px; }
+    .section {
+      margin-top: 20px;
+      border-top: 2px dashed #999;
+      padding-top: 10px;
+    }
+    button, input[type="submit"] {
+      background: #ff00ff;
+      color: #fff;
+      border: none;
+      padding: 5px 10px;
+      cursor: pointer;
+      font-weight: bold;
+      border-radius: 4px;
+    }
+    button:hover, input[type="submit"]:hover { background: #cc00cc; }
+    pre {
+      background: #eee;
+      text-align: left;
+      padding: 10px;
+      border: 1px dashed #999;
+      overflow-x: auto;
+    }
+    hr {
+      border: none;
+      border-top: 3px dotted #999;
+      margin: 20px 0;
+    }
+    .blink {
+      animation: blinker 1s linear infinite;
+      color: red;
+    }
+    @keyframes blinker { 50% { opacity: 0; } }
   </style>
 </head>
 <body>
   <div class="wrapper">
-    <h1>Welcome to webservinho</h1>
+    <marquee scrollamount="6" bgcolor="#ff00ff" behavior="alternate" style="color:#fff;">
+      *** Welcome to Webservinho 1.0 - The Ultimate 90s Experience ***
+    </marquee>
+
+    <h1>Welcome to Webservinho 1.0</h1>
     <img src="/img/webservinho_logo.png" alt="webservinho logo" width="200">
+    <p><small><i>Powered by cutting-edge C++98 technology</i></small></p>
+
+    <hr>
+
+    <div class="section">
+      <h2>Server Features</h2>
+      <ul>
+        <li>✔ Static file serving</li>
+        <li>✔ Directory autoindex</li>
+        <li>✔ CGI execution (Python, PHP, Perl)</li>
+        <li>✔ File uploads (multipart/form-data)</li>
+        <li>✔ Custom error pages</li>
+        <li>✔ Keep-Alive connections</li>
+        <li>✔ HTTP/1.1 compliant</li>
+      </ul>
+    </div>
 
     <div class="section">
       <h2>Static Pages</h2>
       <ul>
-        <li><a href="/static/about.html">About</a></li>
-        <li><a href="/static/contact.html">Contact</a></li>
+        <li><a href="/html/about.html">About</a></li>
+        <li><a href="/html/contact.html">Contact</a></li>
       </ul>
     </div>
 
@@ -36,7 +99,20 @@
     </div>
 
     <div class="section">
-      <h2>Python CGI</h2>
+      <h2>Upload Zone</h2>
+      <ul>
+        <li><a href="/html/upload.html">Upload file</a></li>
+        <li><a href="/uploads">Autoindex ON</a></li>
+      </ul>
+
+      <form action="/uploads" method="POST" enctype="multipart/form-data" style="margin-top:10px;">
+        <input type="file" name="file">
+        <input type="submit" value="Quick Upload">
+      </form>
+    </div>
+
+    <div class="section">
+      <h2>Python CGI Scripts</h2>
       <ul>
         <li><a href="/cgi-bin/hello.py">Hello</a></li>
         <li><a href="/cgi-bin/echo.py?foo=bar&test=123">Echo (GET)</a></li>
@@ -46,7 +122,7 @@
     </div>
 
     <div class="section">
-      <h2>PHP CGI</h2>
+      <h2>PHP CGI Scripts</h2>
       <ul>
         <li><a href="/php-bin/info.php">PHP Info</a></li>
         <li><a href="/php-bin/echo.php?hello=world">Echo (GET/POST)</a></li>
@@ -54,7 +130,70 @@
       </ul>
     </div>
 
-    <p style="margin-top:20px;font-size:12px;">&copy; 1996–2025 webservinho. Best viewed in Netscape 4.0 at 800x600.</p>
+    <div class="section">
+      <h2>Perl CGI Scripts</h2>
+      <ul>
+        <li><a href="/perl-bin/hello.pl">Hello World</a></li>
+        <li><a href="/perl-bin/env.pl">Environment Variables</a></li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>Interactive Form (Python)</h2>
+      <form action="/cgi-bin/form.py" method="POST">
+        <input type="text" name="name" placeholder="Your name">
+        <input type="submit" value="Say Hello">
+      </form>
+    </div>
+
+    <div class="section">
+      <h2>HTTP Methods Test</h2>
+      <button onclick="sendMethod('GET')">GET</button>
+      <button onclick="sendMethod('POST')">POST</button>
+      <button onclick="sendMethod('DELETE')">DELETE</button>
+      <pre id="methodResult">Click a button to test methods.py</pre>
+    </div>
+
+    <div class="section">
+      <h2>AJAX API Test</h2>
+      <button onclick="callApi()">Call /php-bin/echo.php?msg=hello</button>
+      <pre id="apiResult">(no response yet)</pre>
+    </div>
+
+    <div class="section">
+      <h2>Stress / Timeout Tests</h2>
+      <ul>
+        <li><a href="/cgi-bin/sleep.py">Sleep 5s (timeout test)</a></li>
+        <li><a href="/cgi-bin/big_output.py">Generate big output</a></li>
+      </ul>
+    </div>
+
+    <hr>
+
+    <div style="font-size:12px;color:#333;">
+      <p>Running on <b>Webservinho 1.0</b> - Bringing the 90s back to your browser!</p>
+      <p><i>Now with full CGI support and blazing-fast C++98 performance.</i></p>
+      <p><span class="blink">Under Construction!</span></p>
+      <p>
+        <img src="/img/netscape_now.gif" alt="Best viewed in Netscape" height="40">
+        <img src="/img/ie_logo.gif" alt="IE Compatible" height="40">
+        <img src="/img/under_construction.gif" alt="Under Construction" height="40">
+      </p>
+      <p>&copy; 1996–2025 Webservinho. Best viewed in <b>Netscape 4.0</b> at <b>800x600</b>.</p>
+    </div>
   </div>
+
+  <script>
+    async function sendMethod(method) {
+      const res = await fetch('/cgi-bin/methods.py', { method });
+      const txt = await res.text();
+      document.getElementById('methodResult').textContent = txt;
+    }
+    async function callApi() {
+      const res = await fetch('/php-bin/echo.php?msg=hello');
+      const txt = await res.text();
+      document.getElementById('apiResult').textContent = txt;
+    }
+  </script>
 </body>
 </html>

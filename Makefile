@@ -5,6 +5,7 @@ RESPONSE_PATH = srcs/response
 DISPATCHER_PATH = srcs/dispatcher
 UTILS_PATH = srcs/utils
 INIT_PATH = srcs/init
+CONFIG_PATH = srcs/config
 
 SRCS = srcs/main.cpp \
 	$(REQUEST_PATH)/HttpRequest.cpp \
@@ -16,33 +17,42 @@ SRCS = srcs/main.cpp \
 	$(DISPATCHER_PATH)/Dispatcher.cpp \
 	$(DISPATCHER_PATH)/StaticPageHandler.cpp \
 	$(DISPATCHER_PATH)/CgiHandler.cpp \
+	$(DISPATCHER_PATH)/AutoIndexHandler.cpp \
+	$(DISPATCHER_PATH)/UploadHandler.cpp \
+	$(DISPATCHER_PATH)/DeleteHandler.cpp \
 	$(UTILS_PATH)/Logger.cpp \
+	$(UTILS_PATH)/Signals.cpp \
 	$(INIT_PATH)/WebServer.cpp \
 	$(INIT_PATH)/ServerSocket.cpp \
 	$(INIT_PATH)/ClientConnection.cpp \
-	$(INIT_PATH)/ServerConfig.cpp \
+	$(CONFIG_PATH)/Config.cpp \
+	$(CONFIG_PATH)/ConfigParser.cpp \
+	$(CONFIG_PATH)/LocationConfig.cpp \
+	$(CONFIG_PATH)/ServerConfig.cpp \
 
 OBJS_DIR = objs
 OBJS = $(SRCS:srcs/%.cpp=$(OBJS_DIR)/%.o)
-
-#add logs folder
+LOG_DIR = logs
 
 CXX = c++
-CXXFLAGS = -Wall -Werror -Wextra -std=c++98 -g -I./includes -DDEV=1
+CXXFLAGS = -Wall -Werror -Wextra -std=c++98 -Iincludes -g -DDEV=1
 
-RM = rm -f
+RM = rm -rf
 
-$(NAME): $(OBJS)
+$(NAME): $(OBJS) $(LOG_DIR)
 	$(CXX) $(CXXFLAGS) $(OBJS) -o $(NAME)
 
-all: $(NAME)
+all: $(LOG_DIR) $(NAME)
+
+$(LOG_DIR):
+	@mkdir -p $(LOG_DIR)
 
 $(OBJS_DIR)/%.o: srcs/%.cpp
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 clean:
-	$(RM) $(OBJS)
+	$(RM) $(OBJS_DIR) 
 
 fclean: clean
 	$(RM) $(NAME)

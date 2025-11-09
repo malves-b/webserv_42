@@ -2,34 +2,41 @@
 # define WEBSERVER_HPP
 
 #include "ServerSocket.hpp"
+#include "config/ServerConfig.hpp"
+#include "config/Config.hpp"
 #include <vector>
 #include <map>
+#include <utils/Signals.hpp>
 
 class ClientConnection;
 class WebServer
 {
 	private:
-		//Config						_config; //probably const and reference //later
-		ServerSocket					_serverSocket;
+		Config const&					_config; //std::vector<ServerConfig>		_config;
+		std::map<int, size_t>			_socketToServerIndex; // Socket FD to _config index//when poll() gives you fd = X, you can jump to configs[index] to figure out which server block this socket belongs to.
+		std::vector<ServerSocket*>		_serverSocket; //ServerSocket					_serverSocket; //needs to be a vector
 		std::map<int, ClientConnection>	_clients; //can also hold fd set to -1
 		std::vector<struct pollfd>		_pollFDs;
-		//bool							run; //to handle the run loop
 
 		WebServer(WebServer const& src); //memmove?
 		WebServer&						operator=(WebServer const& rhs); //memmove?
 	public:
-		WebServer(void);
+		WebServer(Config const& config);
 		~WebServer(void);
 
 		void							startServer(void);
 		void							runServer(void); //run loop
-		void							queueClientConnections(void);
+		void							queueClientConnections(ServerSocket& socket);
 		void							addToPollFD(int fd, short events);
-		void							receiveRequest(size_t i);
-		void							sendResponse(size_t i);
+		void							receiveRequest(std::size_t i);
+		void							sendResponse(std::size_t i);
 		void							removeClientConnection(int clientFD, size_t pollFDIndex);
+		void							gracefulShutdown(void);
+		int								getPollTimeout(void);
 		//later
-		//void							stop(void); //cleanup
+
+
+		void							cleanup(void); //cleanup
 };
 
 #endif //WEBSERVER_HPP

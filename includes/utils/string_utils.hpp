@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
+#include <iomanip>
 
 inline std::string	lTrim(const std::string& str)
 {
@@ -88,6 +89,80 @@ inline std::string	toString(T value)
 {
 	std::ostringstream oss;
 	oss << value;
+	return oss.str();
+}
+
+inline bool	startsWith(const std::string& s, const std::string& prefix)
+{
+	return s.size() >= prefix.size() &&
+			std::equal(prefix.begin(), prefix.end(), s.begin());
+}
+
+inline static std::string	joinPaths(const std::string& base, const std::string& sub)
+{
+	if (base.empty())
+		return (sub);
+	if (sub.empty())
+		return (base);
+
+	if (base[base.size() - 1] == '/' && sub[0] == '/')
+		return (base + sub.substr(1));
+	else if (base[base.size() - 1] != '/' && sub[0] != '/')
+		return (base + '/' + sub);
+	else
+		return (base + sub);
+}
+
+inline static bool	hasParentTraversal(const std::string& s)
+{
+	if (s.find("/../") != std::string::npos)
+		return (true);
+
+	if (s.size() >= 3 && s.substr(0, 3) == "../")
+		return (true);
+
+	if (s.size() >= 3 && s.substr(s.size() - 3) == "/..")
+		return (true);
+
+	return (false);
+}
+
+inline static std::string	trim_copy(const std::string& s)
+{
+	size_t a = 0;
+	size_t b = s.size();
+
+	while (a < b && (s[a] == ' ' || s[a] == '\t'))
+		a++;
+	while (b > a && (s[b - 1] == ' ' || s[b - 1] == '\t'))
+		b--;
+
+	return (s.substr(a, b - a));
+}
+
+inline static std::string	getFileExtension(const std::string& path)
+{
+	std::string::size_type dotPos = path.find_last_of('.');
+	if (dotPos == std::string::npos)
+		return ("");
+
+	std::string::size_type slashPos = path.find_last_of('/');
+	if (slashPos != std::string::npos && dotPos < slashPos)
+		return ("");
+
+	return (path.substr(dotPos));
+}
+
+inline static std::string	uriEncode(const std::string& s)
+{
+	std::ostringstream oss;
+	for (size_t i = 0; i < s.size(); ++i) {
+		unsigned char c = s[i];
+		if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~')
+			oss << c;
+		else
+			oss << '%' << std::uppercase << std::hex << std::setw(2) << std::setfill('0') << int(c);
+	}
 	return oss.str();
 }
 
