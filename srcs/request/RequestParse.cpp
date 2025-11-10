@@ -87,6 +87,18 @@ void	RequestParse::handleRawRequest(const std::string& chunk, HttpRequest& req, 
 	if (i > 0)
 		req.getRaw().erase(0, i);
 
+	if (req.getMeta().isChunked() && req.getState() == RequestState::Complete)
+	{
+		Logger::instance().log(DEBUG, "RequestParse: finalizing chunked body for CGI");
+		req.getMeta().setChunked(false);
+		req.getMeta().setContentLength(req.getBody().size());
+		req.addHeader("content-length", toString(req.getBody().size()));
+
+		// Remove Transfer-Encoding
+		if (req.hasHeader("transfer-encoding"))
+			req.removeHeader("transfer-encoding");
+	}
+
 	Logger::instance().log(DEBUG,
 		"RequestParse::handleRawRequest consumed=" + toString(i) + " remaining=" + toString(rawRequest.size()));
 }

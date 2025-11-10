@@ -10,8 +10,9 @@
 #include <config/ServerConfig.hpp>
 #include <utils/Logger.hpp>
 #include <utils/string_utils.hpp>
+#include <utils/Signals.hpp>
 
-void	Dispatcher::dispatch(ClientConnection& client)
+void Dispatcher::dispatch(ClientConnection& client)
 {
 	Logger::instance().log(DEBUG, "[Started] Dispatcher::dispatch");
 
@@ -32,7 +33,6 @@ void	Dispatcher::dispatch(ClientConnection& client)
 	{
 		case RouteType::Redirect:
 			Logger::instance().log(INFO, "Dispatcher: Handling Redirect");
-			// Nothing to do, ResponseBuilder handles redirect headers
 			break ;
 
 		case RouteType::Upload:
@@ -46,9 +46,30 @@ void	Dispatcher::dispatch(ClientConnection& client)
 			break ;
 
 		case RouteType::CGI:
+		{
 			Logger::instance().log(INFO, "Dispatcher: Handling CGI Execution");
-			CgiHandler::handle(req, res);
+
+			try
+			{
+				// inicia CGI não bloqueante
+				CgiProcess proc = CgiHandler::startAsync(req, client.getFD());
+
+				client.setCgiActive(true);
+				client.setCgiFd(proc.out_fd);
+				client.setCgiPid(proc.pid);
+				client.setCgiStart(proc.startAt);
+				client.cgiBuffer().clear();
+
+				// não construir resposta ainda — o WebServer fará depois
+				Logger::instance().log(DEBUG, "Dispatcher: async CGI started");
+			}
+			catch (const std::exception& e)
+			{
+				Logger::instance().log(ERROR, "Dispatcher: CGI start failed -> " + std::string(e.what()));
+				res.setStatusCode(ResponseStatus::InternalServerError);
+			}
 			break ;
+		}
 
 		case RouteType::AutoIndex:
 			Logger::instance().log(INFO, "Dispatcher: Handling AutoIndex");
@@ -63,31 +84,26 @@ void	Dispatcher::dispatch(ClientConnection& client)
 		case RouteType::Error:
 		default:
 			Logger::instance().log(WARNING, "Dispatcher: Handling Error Response");
-			// ResponseBuilder will handle error status (404, 403, etc.)
 			break ;
 	}
 
-	ResponseBuilder::build(client, req, res);
-
-	// CONNECTION MODE
-	if (req.getMeta().shouldClose())
+	// 🟡 IMPORTANTE:
+	// Só monta resposta se NÃO for CGI assíncrono
+	if (!client.hasCgi())
 	{
-		client.setKeepAlive(false);
-		Logger::instance().log(DEBUG, "Dispatcher: Connection set to close");
+		ResponseBuilder::build(client, req, res);
+
+		if (req.getMeta().shouldClose())
+			client.setKeepAlive(false);
+		else
+			client.setKeepAlive(true);
+
+		client.setResponseBuffer(ResponseBuilder::responseWriter(res));
+
+		if (res.getHeader("Content-Type") == "text/html")
+			Logger::instance().log(DEBUG, "Dispatcher: HTML response -> " + client.getResponseBuffer());
 	}
-	else
-	{
-		client.setKeepAlive(true);
-		Logger::instance().log(DEBUG, "Dispatcher: Keep-Alive enabled");
-	}
 
-	// RESPONSE BUFFER
-	client.setResponseBuffer(ResponseBuilder::responseWriter(res));
-
-	if (res.getHeader("Content-Type") == "text/html")
-		Logger::instance().log(DEBUG, "Dispatcher: HTML response -> " + client.getResponseBuffer());
-
-	// CLEANUP
 	req.reset();
 	res.reset();
 

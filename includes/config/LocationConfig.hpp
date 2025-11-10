@@ -4,7 +4,9 @@
 #include <vector>
 #include <string>
 #include <map>
-#include "request/RequestMethod.hpp"
+
+//webserv
+#include <request/RequestMethod.hpp>
 
 class LocationConfig
 {

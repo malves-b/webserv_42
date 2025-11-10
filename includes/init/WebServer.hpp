@@ -1,12 +1,15 @@
 #ifndef WEBSERVER_HPP
 # define WEBSERVER_HPP
 
-#include "ServerSocket.hpp"
-#include "config/ServerConfig.hpp"
-#include "config/Config.hpp"
 #include <vector>
 #include <map>
+
+//webserv
+#include <init/ServerSocket.hpp>
 #include <utils/Signals.hpp>
+#include <dispatcher/CgiHandler.hpp>
+#include <config/ServerConfig.hpp>
+#include <config/Config.hpp>
 
 class ClientConnection;
 class WebServer
@@ -20,6 +23,15 @@ class WebServer
 
 		WebServer(WebServer const& src); //memmove?
 		WebServer&						operator=(WebServer const& rhs); //memmove?
+
+		std::map<int,int> _cgiFdToClientFd;
+		std::map<int, CgiProcess> _cgiMap;
+
+		void addCgiPollFd(int cgiFd);
+		void removeCgiPollFd(int cgiFd);
+		void handleCgiReadable(int pollIndex); // lê dados do CGI e finaliza resposta quando EOF
+		void sweepCgiTimeouts();               // mata CGI estourado
+
 	public:
 		WebServer(Config const& config);
 		~WebServer(void);
@@ -33,10 +45,6 @@ class WebServer
 		void							removeClientConnection(int clientFD, size_t pollFDIndex);
 		void							gracefulShutdown(void);
 		int								getPollTimeout(void);
-		//later
-
-
-		void							cleanup(void); //cleanup
 };
 
 #endif //WEBSERVER_HPP

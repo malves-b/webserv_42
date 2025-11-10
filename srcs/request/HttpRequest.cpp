@@ -252,3 +252,15 @@ const std::string	HttpRequest::getResolvedPath(void) const
 {
 	return (this->_resolvedPath);
 }
+
+bool	HttpRequest::hasHeader(const std::string& key) const
+{
+	std::string lowerKey = toLower(key);
+	return (_headers.find(lowerKey) != _headers.end());
+}
+
+void	HttpRequest::removeHeader(const std::string& key)
+{
+	std::string lowerKey = toLower(key);
+	_headers.erase(lowerKey);
+}

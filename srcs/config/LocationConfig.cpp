@@ -1,5 +1,5 @@
-#include "config/LocationConfig.hpp"
-#include "request/RequestMethod.hpp"
+#include <config/LocationConfig.hpp>
+#include <request/RequestMethod.hpp>
 
 LocationConfig::LocationConfig(std::string newPath) 
 	: _path(newPath),

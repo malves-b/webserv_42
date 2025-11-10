@@ -1,10 +1,10 @@
-#include "config/ConfigParser.hpp"
-#include "config/ServerConfig.hpp"
 #include <fstream> 
 #include <sstream>
 #include <locale>
 #include <limits>
 #include <cmath>
+#include <config/ConfigParser.hpp>
+#include <config/ServerConfig.hpp>
 
 RequestMethod::Method	ConfigParser::parseMethod(std::string const& token)
 {

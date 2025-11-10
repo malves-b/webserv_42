@@ -8,7 +8,6 @@
 
 volatile std::sig_atomic_t Signals::g_shouldStop = 0;
 static std::map<pid_t, std::time_t> g_activeCgis;
-static const int CGI_TIMEOUT_SEC = 30;
 
 Signals::Signals(void) {}
 
@@ -60,11 +59,11 @@ void	Signals::checkCgiTimeouts(void)
 	for (std::map<pid_t, std::time_t>::iterator it = g_activeCgis.begin(); it != g_activeCgis.end(); )
 	{
 		double elapsed = difftime(now, it->second);
-		if (elapsed > CGI_TIMEOUT_SEC)
+		if (elapsed > Signals::CGI_TIMEOUT_SEC)
 		{
 			Logger::instance().log(WARNING,
 				"Signals: killing CGI pid=" + toString(it->first) +
-				" (timeout " + toString(CGI_TIMEOUT_SEC) + "s exceeded)");
+				" (timeout " + toString(Signals::CGI_TIMEOUT_SEC) + "s exceeded)");
 			kill(it->first, SIGKILL);
 
 			std::map<pid_t, std::time_t>::iterator toErase = it;

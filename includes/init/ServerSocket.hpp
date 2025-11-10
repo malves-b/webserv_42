@@ -1,16 +1,18 @@
 #ifndef SERVERSOCKET_HPP
 # define SERVERSOCKET_HPP
 
-#include "ClientConnection.hpp"
 #include <string>
 #include <vector>
+
+//webserv
+#include <init/ClientConnection.hpp>
 
 class ServerSocket
 {
 	private:
 		int					_fd;
 
-		ServerSocket&					operator=(ServerSocket const& rhs); //memmove?
+		ServerSocket&		operator=(ServerSocket const& rhs); //memmove?
 	public:
 		ServerSocket(void);
 		ServerSocket(ServerSocket const& src); //memmove?

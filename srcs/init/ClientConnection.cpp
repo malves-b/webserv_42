@@ -21,15 +21,17 @@ ClientConnection::~ClientConnection(void)
 }
 
 ClientConnection::ClientConnection(const ServerConfig& config)
-	: _fd(-1), _serverConfig(config), _sentBytes(0), _keepAlive(true)
+    : _fd(-1), _serverConfig(config), _sentBytes(0), _keepAlive(true),
+      _hasCgi(false), _cgiFd(-1), _cgiPid(-1), _cgiStart(0)
 {
-	Logger::instance().log(DEBUG, "ClientConnection: created with default state");
+    Logger::instance().log(DEBUG, "ClientConnection: created with default state");
 }
 
 ClientConnection::ClientConnection(const ClientConnection& src)
-	: _fd(-1), _serverConfig(src._serverConfig), _sentBytes(0), _keepAlive(src._keepAlive)
+    : _fd(-1), _serverConfig(src._serverConfig), _sentBytes(0), _keepAlive(src._keepAlive),
+      _hasCgi(false), _cgiFd(-1), _cgiPid(-1), _cgiStart(0)
 {
-	Logger::instance().log(DEBUG, "ClientConnection: copy-constructed");
+    Logger::instance().log(DEBUG, "ClientConnection: copy-constructed");
 }
 
 void	ClientConnection::adoptFD(int fd)
@@ -174,4 +176,35 @@ HttpRequest&	ClientConnection::getRequest(void)
 HttpResponse&	ClientConnection::getResponse(void)
 {
 	return (this->_httpResponse);
+}
+
+//CGI ASYNC SUPPORT
+
+bool	ClientConnection::hasCgi() const { return (_hasCgi); }
+
+bool	ClientConnection::isCgiActive() const { return (_hasCgi); }
+
+int	ClientConnection::getCgiFd() const { return (_cgiFd);}
+
+pid_t	ClientConnection::getCgiPid() const { return (_cgiPid); }
+
+std::time_t	ClientConnection::getCgiStart() const { return (_cgiStart); }
+
+std::string&	ClientConnection::cgiBuffer() { return (_cgiBuffer); }
+
+void	ClientConnection::setCgiActive(bool v) { _hasCgi = v;}
+
+void	ClientConnection::setCgiFd(int fd) { _cgiFd = fd; }
+
+void	ClientConnection::setCgiPid(pid_t pid) { _cgiPid = pid; }
+
+void	ClientConnection::setCgiStart(std::time_t t) { _cgiStart = t; }
+
+void	ClientConnection::clearCgi()
+{
+	_hasCgi = false;
+	_cgiFd = -1;
+	_cgiPid = -1;
+	_cgiStart = 0;
+	_cgiBuffer.clear();
 }

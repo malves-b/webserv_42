@@ -1,11 +1,13 @@
 #ifndef CONFIGPARSER_H
 # define CONFIGPARSER_H
 
-#include "Config.hpp"
-#include "ServerConfig.hpp"
-#include "request/RequestMethod.hpp"
 #include <string>
 #include <iostream>
+
+//webserv
+#include <config/Config.hpp>
+#include <config/ServerConfig.hpp>
+#include <request/RequestMethod.hpp>
 
 class ConfigParser
 {
@@ -25,9 +27,9 @@ class ConfigParser
 		ConfigParser(ConfigParser const& src);
 		ConfigParser&					operator=(ConfigParser const& rhs);
 		~ConfigParser(void);
+
 	public:
 		static Config					parseFile(std::string const& configFile); //populates the Config::_servers vector //dont allow port duplicates
-
 };
 
 #endif //CONFIGPARSER_H

@@ -1,4 +1,4 @@
-#include "config/Config.hpp"
+#include <config/Config.hpp>
 
 Config::Config(void) {}
 

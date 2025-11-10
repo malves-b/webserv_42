@@ -35,7 +35,7 @@ OBJS = $(SRCS:srcs/%.cpp=$(OBJS_DIR)/%.o)
 LOG_DIR = logs
 
 CXX = c++
-CXXFLAGS = -Wall -Werror -Wextra -std=c++98 -Iincludes -g -DDEV=1
+CXXFLAGS = -Wall -Werror -Wextra -std=c++98 -Iincludes -g -DDEV=0
 
 RM = rm -rf
 
