@@ -41,5 +41,18 @@ objs/
 srcs/response/ResponseBuilder.cpp
 .vscode
 .vscode/settings.json
-/docs/
-TODO
+
+# Ignore generated HTML but keep the config files
+/docs/html/
+/docs/latex/
+/docs/xml/
+/docs/man/
+/docs/rtf/
+/docs/doxygen_sqlite3.db
+
+# Keep Doxygen configuration and custom assets
+!docs/
+!docs/*.md
+!docs/*.css
+!Doxyfile
+
