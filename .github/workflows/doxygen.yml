@@ -1,17 +1,43 @@
-name: Doxygen
+name: Doxygen Docs
+
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+  workflow_dispatch:
 
 jobs:
   generate-docs:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Install Doxygen
-        run: sudo apt-get install -y doxygen graphviz
-      - name: Generate Documentation
-        run: doxygen Doxyfile
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify Doxyfile location
+        run: |
+          echo "Current directory: $(pwd)"
+          ls -la
+          if [ ! -f ./Doxyfile ]; then
+            echo "❌ ERROR: Doxyfile not found!"
+            exit 1
+          fi
+
+      - name: Install Doxygen and Graphviz
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y doxygen graphviz
+
+      - name: Generate Doxygen documentation
+        run: |
+          doxygen ./Doxyfile
+
+      - name: Upload Doxygen HTML as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: webservinho-docs
+          path: docs/html
+
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
