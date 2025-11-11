@@ -5,6 +5,11 @@
 #include <utils/string_utils.hpp>
 #include <utils/Signals.hpp>
 
+/**
+ * @brief Generates a timestamp string in RFC 1123 format for HTTP headers.
+ *
+ * Example output: "Tue, 11 Nov 2025 18:45:00 GMT"
+ */
 const std::string	ResponseBuilder::fmtTimestamp(void)
 {
 	std::time_t now = std::time(0);
@@ -14,12 +19,22 @@ const std::string	ResponseBuilder::fmtTimestamp(void)
 	return (std::string(buf));
 }
 
+/**
+ * @brief Adds mandatory HTTP headers to the response.
+ *
+ * Includes "Date" and "Server" headers.
+ */
 void	ResponseBuilder::setMinimumHeaders(HttpResponse& response)
 {
 	response.addHeader("Date", fmtTimestamp());
 	response.addHeader("Server", "Webservinho/1.0");
 }
 
+/**
+ * @brief Generates a simple HTML error page for a given HTTP status code.
+ *
+ * Returns a basic HTML document with a status code and an image from http.cat.
+ */
 std::string	ResponseBuilder::errorPageGenerator(ResponseStatus::code code)
 {
 	std::ostringstream oss;
@@ -37,6 +52,11 @@ std::string	ResponseBuilder::errorPageGenerator(ResponseStatus::code code)
 	return (oss.str());
 }
 
+/**
+ * @brief Constructs the complete HTTP response string.
+ *
+ * Includes status line, headers, and body (unless chunked).
+ */
 const std::string	ResponseBuilder::responseWriter(HttpResponse& response)
 {
 	Logger::instance().log(DEBUG, "[Started] ResponseBuilder::responseWriter");
@@ -55,6 +75,7 @@ const std::string	ResponseBuilder::responseWriter(HttpResponse& response)
 
 	oss << "\r\n";
 
+	// Append body only if not chunked
 	if (!response.isChunked())
 		oss << response.getBody();
 
@@ -64,6 +85,11 @@ const std::string	ResponseBuilder::responseWriter(HttpResponse& response)
 	return (oss.str());
 }
 
+/**
+ * @brief Prepares an HTTP response for a static page.
+ *
+ * Sets Content-Type, Content-Length, and appends the page content.
+ */
 void	ResponseBuilder::handleStaticPageOutput(HttpResponse& response,
 	const std::string output, const std::string& mimeType)
 {
@@ -73,6 +99,12 @@ void	ResponseBuilder::handleStaticPageOutput(HttpResponse& response,
 	response.appendBody(output);
 }
 
+/**
+ * @brief Processes CGI output and builds an HTTP response from it.
+ *
+ * Splits headers and body, parses the "Status" field if present, and fills
+ * the HttpResponse object with the appropriate headers and body.
+ */
 void	ResponseBuilder::handleCgiOutput(HttpResponse& response, const std::string& output)
 {
 	std::size_t sep = output.find("\r\n\r\n");
@@ -116,26 +148,31 @@ void	ResponseBuilder::handleCgiOutput(HttpResponse& response, const std::string&
 	response.addHeader("Content-Length", toString(bodyPart.size()));
 }
 
+/**
+ * @brief Assembles the complete HTTP response, including error handling.
+ *
+ * Adds default headers, manages persistent connections, and generates
+ * custom or default error pages when needed.
+ */
 void	ResponseBuilder::build(ClientConnection& client, HttpRequest& req, HttpResponse& res)
 {
 	Logger::instance().log(DEBUG, "[Started] ResponseBuilder::build");
 	Logger::instance().log(DEBUG,
 		"ResponseBuilder: StatusCode -> " + toString(res.getStatusCode()));
 
-	// if (Signals::shouldStop())
-	// 	res.setStatusCode(ResponseStatus::ServiceUnavailable);
-
 	setMinimumHeaders(res);
 	res.setReasonPhrase(res.getStatusCode());
 	res.setVersion("1.1");
 	res.addHeader("Connection", "keep-alive");
 
+	// Handle explicit connection close
 	if (req.getMeta().shouldClose())
 	{
 		res.addHeader("Connection", "close");
 		req.getMeta().setConnectionClose(true);
 	}
 
+	// Generate error page if response >= 400
 	if (res.getStatusCode() >= 400)
 	{
 		if (shouldCloseConnection(res.getStatusCode()))
@@ -154,13 +191,17 @@ void	ResponseBuilder::build(ClientConnection& client, HttpRequest& req, HttpResp
 	Logger::instance().log(DEBUG, "[Finished] ResponseBuilder::build");
 }
 
+/**
+ * @brief Attempts to load and serve a custom error page from configuration.
+ *
+ * If unavailable, returns false to trigger default error page generation.
+ */
 bool	ResponseBuilder::errorPageConfig(const std::string& root, HttpResponse& res, const ServerConfig& config)
 {
 	int statusCode = static_cast<int>(res.getStatusCode());
 	const std::map<int, std::string>& errorsPages = config.getErrorPage();
 
 	std::map<int, std::string>::const_iterator it = errorsPages.find(statusCode);
-	Logger::instance().log(DEBUG, "ResponseBuilder: errorPageConfig -> " + it->second);
 	if (it == errorsPages.end())
 		return (false);
 
@@ -184,6 +225,9 @@ bool	ResponseBuilder::errorPageConfig(const std::string& root, HttpResponse& res
 	return (true);
 }
 
+/**
+ * @brief Determines whether the connection should be closed based on status code.
+ */
 bool	ResponseBuilder::shouldCloseConnection(int statusCode)
 {
 	switch (statusCode)

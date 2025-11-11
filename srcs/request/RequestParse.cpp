@@ -10,6 +10,12 @@
 #include <config/ServerConfig.hpp>
 #include <config/LocationConfig.hpp>
 
+/**
+ * @brief Parses and processes raw HTTP request data incrementally.
+ *
+ * Handles the entire HTTP request flow: request line, headers, and body.
+ * Supports both Content-Length and chunked transfer encoding.
+ */
 void	RequestParse::handleRawRequest(const std::string& chunk, HttpRequest& req, const ServerConfig& config)
 {
 	req.appendRaw(chunk);
@@ -22,6 +28,7 @@ void	RequestParse::handleRawRequest(const std::string& chunk, HttpRequest& req, 
 
 	while (i < rawRequest.size() && req.getState() != RequestState::Complete)
 	{
+		// Handle request line and headers
 		if (req.getState() < RequestState::Body)
 		{
 			char ch = rawRequest[i];
@@ -47,13 +54,13 @@ void	RequestParse::handleRawRequest(const std::string& chunk, HttpRequest& req, 
 						req.setRequestState(RequestState::Complete);
 						return ;
 					}
-
 					req.setRequestState(RequestState::Headers);
 				}
 				else
 				{
 					if (buffer.empty())
 					{
+						// End of headers: determine next state
 						if (req.getMeta().getContentLength() == 0 && !req.getMeta().isChunked())
 							req.setRequestState(RequestState::Complete);
 						else
@@ -77,6 +84,7 @@ void	RequestParse::handleRawRequest(const std::string& chunk, HttpRequest& req, 
 			continue ;
 		}
 
+		// Handle body (Content-Length or chunked)
 		if (req.getState() == RequestState::Body)
 		{
 			body(rawRequest[i], req, config.getClientMaxBodySize());
@@ -84,14 +92,30 @@ void	RequestParse::handleRawRequest(const std::string& chunk, HttpRequest& req, 
 		}
 	}
 
+	// Remove processed data from buffer
 	if (i > 0)
 		req.getRaw().erase(0, i);
+
+	// Normalize chunked requests (for CGI or POST processing)
+	if (req.getMeta().isChunked() && req.getState() == RequestState::Complete)
+	{
+		Logger::instance().log(DEBUG, "RequestParse: finalizing chunked body for CGI");
+		req.getMeta().setChunked(false);
+		req.getMeta().setContentLength(req.getBody().size());
+		req.addHeader("content-length", toString(req.getBody().size()));
+
+		if (req.hasHeader("transfer-encoding"))
+			req.removeHeader("transfer-encoding");
+	}
 
 	Logger::instance().log(DEBUG,
 		"RequestParse::handleRawRequest consumed=" + toString(i) + " remaining=" + toString(rawRequest.size()));
 }
 
-void RequestParse::requestLine(const std::string& buffer, HttpRequest& req, const ServerConfig& config)
+/**
+ * @brief Parses the HTTP request line (method, URI, version).
+ */
+void	RequestParse::requestLine(const std::string& buffer, HttpRequest& req, const ServerConfig& config)
 {
 	Logger::instance().log(DEBUG, "[Started] RequestParse::reqLine");
 
@@ -133,6 +157,9 @@ void RequestParse::requestLine(const std::string& buffer, HttpRequest& req, cons
 	Logger::instance().log(DEBUG, "[Finished] RequestParse::reqLine");
 }
 
+/**
+ * @brief Determines the HTTP method and validates it against configuration.
+ */
 void	RequestParse::method(const std::string& method, HttpRequest& req, const ServerConfig& config)
 {
 	if (method == "GET")
@@ -152,6 +179,9 @@ void	RequestParse::method(const std::string& method, HttpRequest& req, const Ser
 	checkMethod(req, config);
 }
 
+/**
+ * @brief Extracts and validates the request URI and query string.
+ */
 void	RequestParse::uri(const std::string str, HttpRequest& req)
 {
 	std::string uri = str;
@@ -172,12 +202,14 @@ void	RequestParse::uri(const std::string str, HttpRequest& req)
 	req.setQueryString(extractQueryString(str));
 }
 
+/**
+ * @brief Parses individual HTTP header lines and updates metadata.
+ */
 void	RequestParse::headers(const std::string& buffer, HttpRequest& req, std::size_t maxBodySize)
 {
 	Logger::instance().log(DEBUG, "[Started] RequestParse::headers");
 
 	std::string::size_type pos = buffer.find(":");
-
 	if (pos == std::string::npos)
 	{
 		req.setParseError(ResponseStatus::BadRequest);
@@ -247,6 +279,9 @@ void	RequestParse::headers(const std::string& buffer, HttpRequest& req, std::siz
 	Logger::instance().log(DEBUG, "[Finished] RequestParse::headers");
 }
 
+/**
+ * @brief Processes the message body for both fixed-length and chunked modes.
+ */
 void	RequestParse::body(char c, HttpRequest& req, std::size_t maxBodySize)
 {
 	if (!req.getMeta().isChunked())
@@ -269,6 +304,9 @@ void	RequestParse::body(char c, HttpRequest& req, std::size_t maxBodySize)
 	}
 }
 
+/**
+ * @brief Handles Transfer-Encoding: chunked body parsing.
+ */
 void	RequestParse::bodyChunked(char c, HttpRequest& req, std::size_t maxBodySize)
 {
 	std::string& buffer = req.getBuffer();
@@ -281,6 +319,7 @@ void	RequestParse::bodyChunked(char c, HttpRequest& req, std::size_t maxBodySize
 		return ;
 	}
 
+	// Waiting for CRLF separator after a chunk
 	if (req.isExpectingChunkSeparator())
 	{
 		buffer.push_back(c);
@@ -301,6 +340,7 @@ void	RequestParse::bodyChunked(char c, HttpRequest& req, std::size_t maxBodySize
 		return ;
 	}
 
+	// Parsing current chunk size
 	if (req.isParsingChunkSize())
 	{
 		buffer.push_back(c);
@@ -329,6 +369,7 @@ void	RequestParse::bodyChunked(char c, HttpRequest& req, std::size_t maxBodySize
 		return ;
 	}
 
+	// Reading current chunk body
 	chunkBuffer.push_back(c);
 
 	if ((int)chunkBuffer.size() == req.getCurrentChunkSize())
@@ -339,24 +380,28 @@ void	RequestParse::bodyChunked(char c, HttpRequest& req, std::size_t maxBodySize
 	}
 }
 
+/**
+ * @brief Extracts the query string portion from a URI.
+ */
 std::string	RequestParse::extractQueryString(const std::string uri)
 {
 	std::string::size_type queryPos = uri.find('?');
-
 	if (queryPos != std::string::npos)
 		return (uri.substr(queryPos + 1));
-
 	return ("");
 }
 
+/**
+ * @brief Compares body size against maximum allowed by server configuration.
+ */
 bool	RequestParse::isGreaterThanMaxBodySize(std::size_t size, std::size_t maxBodySize)
 {
-	if (size > maxBodySize)
-		return (true);
-
-	return (false);
+	return (size > maxBodySize);
 }
 
+/**
+ * @brief Validates if the HTTP method is allowed in the matched location block.
+ */
 void	RequestParse::checkMethod(HttpRequest& req, const ServerConfig& config)
 {
 	if (req.getMethod() == RequestMethod::INVALID)

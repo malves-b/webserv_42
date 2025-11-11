@@ -84,6 +84,9 @@ class HttpRequest
 		bool						isParsingChunkSize() const;
 		bool						isExpectingChunkSeparator() const;
 		const std::string			getResolvedPath(void) const;
+
+		bool						hasHeader(const std::string& key) const;
+		void						removeHeader(const std::string& key);
 };
 
 #endif //HTTP_REQUEST_HPP

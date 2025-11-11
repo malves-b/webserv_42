@@ -1,12 +1,16 @@
 #ifndef CLIENTCONNECTION_HPP
 # define CLIENTCONNECTION_HPP
 
-#include "request/HttpRequest.hpp"
-#include "response/HttpResponse.hpp"
 #include <string>
+#include <ctime>
 #include <sys/types.h>
 
+//webserv
+#include <request/HttpRequest.hpp>
+#include <response/HttpResponse.hpp>
+
 class ServerConfig;
+
 class ClientConnection
 {
 	private:
@@ -16,17 +20,25 @@ class ClientConnection
 		std::string			_responseBuffer;
 		size_t				_sentBytes;
 		bool				_keepAlive;
-		//time_t				_lastActive;
 		HttpRequest			_httpRequest;
 		HttpResponse		_httpResponse;
 
-		ClientConnection&	operator=(ClientConnection const& rhs); //memmove?
+		// CGI async
+		bool				_hasCgi;
+		int					_cgiFd; // read (STDOUT of CGI)
+		pid_t				_cgiPid;
+		std::time_t			_cgiStart;
+		std::string			_cgiBuffer;
+
+		ClientConnection&	operator=(ClientConnection const& rhs);
 
 	public:
+		// Constructors / Destructor
 		ClientConnection(ServerConfig const& config);
 		ClientConnection(ClientConnection const& src);
 		~ClientConnection(void);
 
+		// Core I/O
 		ssize_t				recvData(void);
 		ssize_t				sendData(ClientConnection &client, size_t sent, size_t toSend);
 		bool				completedRequest(void);
@@ -34,7 +46,7 @@ class ClientConnection
 		void				adoptFD(int fd);
 		void				setKeepAlive(bool keepAlive);
 
-		//accessors
+		// Accessors
 		int const&			getFD(void) const;
 		size_t const&		getSentBytes(void) const;
 		std::string const&	getRequestBuffer(void) const;
@@ -46,6 +58,20 @@ class ClientConnection
 
 		HttpRequest&		getRequest(void);
 		HttpResponse&		getResponse(void);
+
+		// CGI async support
+		bool				hasCgi() const;
+		bool				isCgiActive() const;
+		int					getCgiFd() const;
+		pid_t				getCgiPid() const;
+		std::time_t			getCgiStart() const;
+		std::string&		cgiBuffer();
+
+		void				setCgiActive(bool v);
+		void				setCgiFd(int fd);
+		void				setCgiPid(pid_t pid);
+		void				setCgiStart(std::time_t t);
+		void				clearCgi();
 };
 
-#endif //CLIENTCONNECTION_HPP
+#endif // CLIENTCONNECTION_HPP

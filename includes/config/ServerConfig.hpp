@@ -1,11 +1,13 @@
 #ifndef SERVERCONFIG_HPP
 # define SERVERCONFIG_HPP
 
-#include "LocationConfig.hpp"
-#include "request/RequestMethod.hpp"
 #include <string>
 #include <vector>
 #include <map>
+
+//webserv
+#include <config/LocationConfig.hpp>
+#include <request/RequestMethod.hpp>
 
 class ServerConfig
 {

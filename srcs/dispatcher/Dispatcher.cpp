@@ -10,7 +10,22 @@
 #include <config/ServerConfig.hpp>
 #include <utils/Logger.hpp>
 #include <utils/string_utils.hpp>
+#include <utils/Signals.hpp>
 
+/**
+ * @brief Central dispatch routine that delegates HTTP requests to the appropriate handler.
+ *
+ * The Dispatcher acts as the coordinator between Router and the various handlers.
+ * It interprets the RouteType defined by Router and calls the corresponding component:
+ *  - StaticPageHandler for static content
+ *  - CgiHandler for dynamic scripts
+ *  - UploadHandler for file uploads
+ *  - AutoIndexHandler for directory listings
+ *  - DeleteHandler for DELETE requests
+ *
+ * Additionally, it builds the final HTTP response unless the request triggers
+ * an asynchronous CGI process.
+ */
 void	Dispatcher::dispatch(ClientConnection& client)
 {
 	Logger::instance().log(DEBUG, "[Started] Dispatcher::dispatch");
@@ -21,6 +36,7 @@ void	Dispatcher::dispatch(ClientConnection& client)
 	const ServerConfig& config = client.getServerConfig();
 	const LocationConfig& location = config.matchLocation(req.getUri());
 
+	// Determine route type based on URI and configuration
 	Router::resolve(req, res, config);
 
 	Logger::instance().log(DEBUG,
@@ -28,11 +44,11 @@ void	Dispatcher::dispatch(ClientConnection& client)
 	Logger::instance().log(DEBUG,
 		"Dispatcher: Resolved path -> " + req.getResolvedPath());
 
+	// Dispatch based on the resolved route type
 	switch (req.getRouteType())
 	{
 		case RouteType::Redirect:
 			Logger::instance().log(INFO, "Dispatcher: Handling Redirect");
-			// Nothing to do, ResponseBuilder handles redirect headers
 			break ;
 
 		case RouteType::Upload:
@@ -46,9 +62,30 @@ void	Dispatcher::dispatch(ClientConnection& client)
 			break ;
 
 		case RouteType::CGI:
+		{
 			Logger::instance().log(INFO, "Dispatcher: Handling CGI Execution");
-			CgiHandler::handle(req, res);
+
+			try
+			{
+				// Starts asynchronous CGI execution
+				CgiProcess proc = CgiHandler::startAsync(req, client.getFD());
+
+				client.setCgiActive(true);
+				client.setCgiFd(proc.out_fd);
+				client.setCgiPid(proc.pid);
+				client.setCgiStart(proc.startAt);
+				client.cgiBuffer().clear();
+
+				// Response will be built later by the WebServer main loop
+				Logger::instance().log(DEBUG, "Dispatcher: async CGI started");
+			}
+			catch (const std::exception& e)
+			{
+				Logger::instance().log(ERROR, "Dispatcher: CGI start failed -> " + std::string(e.what()));
+				res.setStatusCode(ResponseStatus::InternalServerError);
+			}
 			break ;
+		}
 
 		case RouteType::AutoIndex:
 			Logger::instance().log(INFO, "Dispatcher: Handling AutoIndex");
@@ -63,31 +100,29 @@ void	Dispatcher::dispatch(ClientConnection& client)
 		case RouteType::Error:
 		default:
 			Logger::instance().log(WARNING, "Dispatcher: Handling Error Response");
-			// ResponseBuilder will handle error status (404, 403, etc.)
 			break ;
 	}
 
-	ResponseBuilder::build(client, req, res);
-
-	// CONNECTION MODE
-	if (req.getMeta().shouldClose())
+	// Build and queue response only for non-CGI routes.
+	if (!client.hasCgi())
 	{
-		client.setKeepAlive(false);
-		Logger::instance().log(DEBUG, "Dispatcher: Connection set to close");
+		ResponseBuilder::build(client, req, res);
+
+		// Manage connection persistence (Keep-Alive)
+		if (req.getMeta().shouldClose())
+			client.setKeepAlive(false);
+		else
+			client.setKeepAlive(true);
+
+		// Serialize full HTTP response into buffer
+		client.setResponseBuffer(ResponseBuilder::responseWriter(res));
+
+		// Optional debug log for HTML responses
+		if (res.getHeader("Content-Type") == "text/html")
+			Logger::instance().log(DEBUG, "Dispatcher: HTML response -> " + client.getResponseBuffer());
 	}
-	else
-	{
-		client.setKeepAlive(true);
-		Logger::instance().log(DEBUG, "Dispatcher: Keep-Alive enabled");
-	}
 
-	// RESPONSE BUFFER
-	client.setResponseBuffer(ResponseBuilder::responseWriter(res));
-
-	if (res.getHeader("Content-Type") == "text/html")
-		Logger::instance().log(DEBUG, "Dispatcher: HTML response -> " + client.getResponseBuffer());
-
-	// CLEANUP
+	// Reset request/response for next cycle
 	req.reset();
 	res.reset();
 

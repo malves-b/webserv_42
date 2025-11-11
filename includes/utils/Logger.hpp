@@ -22,17 +22,14 @@ enum LogLevel
 class Logger
 {
 	private:
-		std::ofstream	_logFile;
-
+		std::ofstream		_logFile;
 		const std::string	levelToString(LogLevel level) const;
-
 		Logger();
-		
-		
-		public:
+
+	public:
 		~Logger();
 		static Logger&	instance();
-		void	log(LogLevel level, const std::string& message);
+		void			log(LogLevel level, const std::string& message);
 };
 
 #endif //LOGGER_HPP

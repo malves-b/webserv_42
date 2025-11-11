@@ -1,8 +1,10 @@
 #ifndef CONFIG_HPP
 # define CONFIG_HPP
 
-#include "ServerConfig.hpp"
 #include <vector>
+
+//webserv
+#include <config/ServerConfig.hpp>
 
 class Config
 {

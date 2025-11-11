@@ -8,11 +8,27 @@
 #include <utils/Logger.hpp>
 #include <utils/Signals.hpp>
 
+/**
+ * @brief Entry point of the Webservinho web server.
+ *
+ * This function initializes logging, parses the configuration file,
+ * sets up signal handlers, and runs the HTTP server main loop.
+ *
+ * @param argc Argument count.
+ * @param argv Argument vector.
+ * @return Exit status code (0 on success, 1 on failure).
+ *
+ * Usage:
+ * @code
+ * ./webserv [config_file]
+ * @endcode
+ */
 int main(int argc, char** argv)
 {
 	Logger::instance();
 	Logger::instance().log(INFO, "[Started] Webservinho");
 
+	// Register signal handler for graceful shutdown
 	std::signal(SIGINT, Signals::signalHandle);
 
 	std::string configFile;

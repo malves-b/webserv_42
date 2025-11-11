@@ -8,9 +8,25 @@
 #include <utils/Logger.hpp>
 #include <utils/string_utils.hpp>
 
+/**
+ * @brief Main entry point for determining how an HTTP request should be handled.
+ *
+ * The Router decides the appropriate route type based on request attributes,
+ * location configuration, and server rules. It checks for:
+ * - Parser errors or invalid URIs
+ * - Path traversal attempts
+ * - Redirects
+ * - CGI execution
+ * - File uploads
+ * - Autoindex directories
+ * - Static file serving
+ * - DELETE operations
+ *
+ * On success, sets the correct RouteType and HTTP response status.
+ */
 void	Router::resolve(HttpRequest& req, HttpResponse& res, const ServerConfig& config)
 {
-	// Handle parser-level error first
+	// Step 1: Handle parser-level errors before routing logic
 	if (req.getParseError() != ResponseStatus::OK)
 	{
 		Logger::instance().log(WARNING, "Router: Request parse error detected");
@@ -19,13 +35,13 @@ void	Router::resolve(HttpRequest& req, HttpResponse& res, const ServerConfig& co
 		return ;
 	}
 
-	// Match the location for this request URI
+	// Step 2: Match the configuration block ("location") for the requested URI
 	const LocationConfig& loc = config.matchLocation(req.getUri());
 	const std::string index = loc.getHasIndexFiles() ? loc.getIndex() : "";
 	const std::string root  = loc.getHasRoot() ? loc.getRoot() : config.getRoot();
 	const std::string cgiPath = loc.getCgiPath();
 
-	// Path traversal guard
+	// Step 3: Path traversal security check
 	if (hasParentTraversal(req.getUri()))
 	{
 		Logger::instance().log(WARNING, "Router: Path traversal attempt blocked: " + req.getUri());
@@ -34,9 +50,10 @@ void	Router::resolve(HttpRequest& req, HttpResponse& res, const ServerConfig& co
 		return ;
 	}
 
-	// Build the resolved filesystem path
+	// Step 4: Build filesystem path corresponding to request URI
 	computeResolvedPath(req, loc, config);
 
+	// Step 5: Handle configured HTTP redirects
 	if (isRedirect(req, res, config))
 	{
 		Logger::instance().log(INFO, "Router: Route type = Redirect");
@@ -44,6 +61,7 @@ void	Router::resolve(HttpRequest& req, HttpResponse& res, const ServerConfig& co
 		return ;
 	}
 
+	// Step 6: Handle CGI execution requests
 	if (isCgi(loc, req, res))
 	{
 		Logger::instance().log(INFO, "Router: Route type = CGI");
@@ -54,6 +72,7 @@ void	Router::resolve(HttpRequest& req, HttpResponse& res, const ServerConfig& co
 	if (checkErrorStatus(req, res))
 		return ;
 
+	// Step 7: Handle file uploads (POST/PUT)
 	if (isUpload(req, res, config))
 	{
 		Logger::instance().log(INFO, "Router: Route type = Upload");
@@ -63,6 +82,7 @@ void	Router::resolve(HttpRequest& req, HttpResponse& res, const ServerConfig& co
 	if (checkErrorStatus(req, res))
 		return ;
 
+	// Step 8: Handle AutoIndex directory listings
 	if (index.empty() && isAutoIndex(index, req, config))
 	{
 		Logger::instance().log(INFO, "Router: Route type = AutoIndex");
@@ -70,6 +90,7 @@ void	Router::resolve(HttpRequest& req, HttpResponse& res, const ServerConfig& co
 		return ;
 	}
 
+	// Step 9: Handle static files (GET requests)
 	if (!index.empty() && isStaticFile(index, req, res))
 	{
 		Logger::instance().log(INFO, "Router: Route type = StaticPage");
@@ -88,24 +109,33 @@ void	Router::resolve(HttpRequest& req, HttpResponse& res, const ServerConfig& co
 	if (checkErrorStatus(req, res))
 		return ;
 
+	// Step 10: Handle DELETE requests explicitly
 	if (req.getMethod() == RequestMethod::DELETE)
 	{
 		req.setRouteType(RouteType::Delete);
 		return ;
 	}
 
+	// Step 11: Default case: route not found (404)
 	Logger::instance().log(WARNING, "Router: No matching route found (404)");
 	res.setStatusCode(ResponseStatus::NotFound);
 	req.setRouteType(RouteType::Error);
 }
 
-void Router::computeResolvedPath(HttpRequest& req,
+/**
+ * @brief Computes the absolute filesystem path of the requested resource.
+ *
+ * Combines the URI with the root or CGI path, removes location prefixes,
+ * and appends index files when appropriate.
+ */
+void	Router::computeResolvedPath(HttpRequest& req,
 								const LocationConfig& location,
 								const ServerConfig& config)
 {
 	std::string uri = req.getUri();
 	std::string root;
 
+	// Determine which root path to use (CGI, location, or server)
 	if (!location.getCgiPath().empty())
 		root = location.getCgiPath();
 	else if (location.getHasRoot())
@@ -113,10 +143,12 @@ void Router::computeResolvedPath(HttpRequest& req,
 	else
 		root = config.getRoot();
 
+	// Remove trailing slash from location path
 	std::string locPath = location.getPath();
 	if (locPath.size() > 1 && locPath[locPath.size() - 1] == '/')
 		locPath.erase(locPath.size() - 1);
 
+	// Compute relative path
 	std::string relativePath = uri;
 	if (uri.find(locPath) == 0)
 		relativePath = uri.substr(locPath.length());
@@ -125,6 +157,7 @@ void Router::computeResolvedPath(HttpRequest& req,
 
 	std::string resolved = joinPaths(root, relativePath);
 
+	// If path is a directory and has index files, append them
 	struct stat s;
 	if (stat(resolved.c_str(), &s) == 0 && S_ISDIR(s.st_mode))
 	{
@@ -141,7 +174,11 @@ void Router::computeResolvedPath(HttpRequest& req,
 		" -> resolved=" + resolved);
 }
 
-
+/**
+ * @brief Checks if the response already contains an error status.
+ *
+ * @return true if an error code is set, otherwise false.
+ */
 bool	Router::checkErrorStatus(HttpRequest& req, HttpResponse& res)
 {
 	if (res.getStatusCode() != ResponseStatus::OK)
@@ -153,6 +190,11 @@ bool	Router::checkErrorStatus(HttpRequest& req, HttpResponse& res)
 	return (false);
 }
 
+/**
+ * @brief Checks if the request triggers an HTTP redirect.
+ *
+ * Reads `return` directive from location config and updates response headers.
+ */
 bool	Router::isRedirect(HttpRequest& req, HttpResponse& res, const ServerConfig& config)
 {
 	const LocationConfig& location = config.matchLocation(req.getUri());
@@ -170,7 +212,12 @@ bool	Router::isRedirect(HttpRequest& req, HttpResponse& res, const ServerConfig&
 	return (false);
 }
 
-bool Router::isUpload(HttpRequest& req, HttpResponse& res, const ServerConfig& config)
+/**
+ * @brief Determines if the current request is a valid upload operation.
+ *
+ * Checks request method (POST/PUT), upload enablement, and directory write access.
+ */
+bool	Router::isUpload(HttpRequest& req, HttpResponse& res, const ServerConfig& config)
 {
 	const LocationConfig& location = config.matchLocation(req.getUri());
 	std::string uploadPath = location.getUploadPath();
@@ -178,32 +225,28 @@ bool Router::isUpload(HttpRequest& req, HttpResponse& res, const ServerConfig& c
 
 	Logger::instance().log(DEBUG, "Router::isUpload comparing uri=" + uri + " uploadPath=" + uploadPath);
 
-	// Only POST or PUT
+	// Only POST or PUT methods are valid for upload
 	if (req.getMethod() != RequestMethod::POST && req.getMethod() != RequestMethod::PUT)
 		return (false);
 
-	// Uploads disenable
+	// Uploads disabled at location level
 	if (!location.getUploadEnabled())
 	{
 		Logger::instance().log(WARNING, "Router::isUpload disabled for this location (403)");
-		// res.setStatusCode(ResponseStatus::Forbidden);
-		// req.setRouteType(RouteType::Error);
 		return (false);
 	}
 
-	// Normalize
 	std::string basePath = uploadPath;
 	if (basePath.empty())
 		return (false);
 
-	// Relative
+	// Handle relative upload paths
 	if (basePath[0] != '/')
 		basePath = config.getRoot() + "/" + basePath;
 
-	// Match
+	// Validate directory existence and write access
 	if (uri.find(location.getPath()) == 0)
 	{
-		// if dir and writable
 		struct stat s;
 		if (stat(basePath.c_str(), &s) != 0 || !S_ISDIR(s.st_mode))
 		{
@@ -220,7 +263,7 @@ bool Router::isUpload(HttpRequest& req, HttpResponse& res, const ServerConfig& c
 			return (false);
 		}
 
-		// OK
+		// Directory OK
 		req.setRouteType(RouteType::Upload);
 		return (true);
 	}
@@ -228,14 +271,16 @@ bool Router::isUpload(HttpRequest& req, HttpResponse& res, const ServerConfig& c
 	return (false);
 }
 
-
-bool Router::isAutoIndex(const std::string& index, HttpRequest& req, const ServerConfig& config)
+/**
+ * @brief Determines whether to enable AutoIndex for a directory listing.
+ */
+bool	Router::isAutoIndex(const std::string& index, HttpRequest& req, const ServerConfig& config)
 {
 	const LocationConfig& location = config.matchLocation(req.getUri());
 
 	bool autoIndexEnabled = config.getAutoindex();
 
-	// The location-level directive overrides the global one
+	// Location-specific directive overrides global setting
 	if (location.getHasAutoIndex())
 		autoIndexEnabled = location.getAutoindex();
 
@@ -245,7 +290,7 @@ bool Router::isAutoIndex(const std::string& index, HttpRequest& req, const Serve
 	std::string path = req.getResolvedPath();
 	struct stat s;
 
-	// Check if it's a directory and the index file doesn't exist
+	// AutoIndex only applies to directories without index files
 	if (stat(path.c_str(), &s) == 0 && S_ISDIR(s.st_mode))
 	{
 		if (path[path.length() - 1] != '/')
@@ -264,7 +309,11 @@ bool Router::isAutoIndex(const std::string& index, HttpRequest& req, const Serve
 	return (false);
 }
 
-
+/**
+ * @brief Checks if the resolved path corresponds to a static file.
+ *
+ * Handles both direct file and directory-with-index cases.
+ */
 bool	Router::isStaticFile(const std::string& index, HttpRequest& req, HttpResponse& res)
 {
 	Logger::instance().log(DEBUG, "Router::isStaticFile start");
@@ -300,6 +349,11 @@ bool	Router::isStaticFile(const std::string& index, HttpRequest& req, HttpRespon
 	return (false);
 }
 
+/**
+ * @brief Determines if the request targets a valid CGI script.
+ *
+ * Checks configured CGI path, file extension, and execution permissions.
+ */
 bool	Router::isCgi(const LocationConfig& loc, HttpRequest& req, HttpResponse& res)
 {
 	std::string cgiPath = loc.getCgiPath();
@@ -312,12 +366,6 @@ bool	Router::isCgi(const LocationConfig& loc, HttpRequest& req, HttpResponse& re
 	if (stat(req.getResolvedPath().c_str(), &s) != 0 || !S_ISREG(s.st_mode))
 		return (false);
 
-	// if (cgiPath.empty())
-	// {
-	// 	Logger::instance().log(DEBUG, "Router::isCgi skipped: no CGI path configured");
-	// 	return (false);
-	// }
-
 	if (req.getResolvedPath().find(cgiPath) == std::string::npos)
 		return (false);
 
@@ -329,20 +377,17 @@ bool	Router::isCgi(const LocationConfig& loc, HttpRequest& req, HttpResponse& re
 	}
 
 	Logger::instance().log(DEBUG, "Router::isCgi detected");
-
 	return (true);
 }
 
-bool Router::hasCgiExtension(const LocationConfig& loc, const std::string& path)
+/**
+ * @brief Checks whether a file extension matches a configured CGI mapping.
+ */
+bool	Router::hasCgiExtension(const LocationConfig& loc, const std::string& path)
 {
 	std::string ext = getFileExtension(path);
 	const std::map<std::string, std::string>& cgiMap = loc.getCgiExtension();
 
 	std::map<std::string, std::string>::const_iterator it = cgiMap.find(ext);
-	if (it != cgiMap.end())
-	{
-		return (true);
-	}
-	return (false);
+	return (it != cgiMap.end());
 }
-
