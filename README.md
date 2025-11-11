@@ -2,6 +2,12 @@
 	<img src="https://img.shields.io/github/last-commit/joseevilasio/webserv_42?color=%2312bab9&style=flat-square"/>
 </p>
 
+<p align="center">
+	<a href="https://github.com/joseevilasio/webserv_42/actions/workflows/doxygen.yml">
+		<img src="https://github.com/joseevilasio/webserv_42/actions/workflows/doxygen.yml/badge.svg" alt="Doxygen Docs"/>
+	</a>
+</p>
+
 # Webservinho
 
 #### Finished in: 2025-11-11
