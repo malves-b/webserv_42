@@ -51,6 +51,9 @@ $(OBJS_DIR)/%.o: srcs/%.cpp
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
+docs:
+	@doxygen Doxyfile
+
 clean:
 	$(RM) $(OBJS_DIR) 
 

@@ -1,0 +1,57 @@
+#---------------------------------------------------------------------------
+# Project related configuration options
+#---------------------------------------------------------------------------
+
+PROJECT_NAME           = "Webservinho API Reference"
+PROJECT_BRIEF          = "A C++98 HTTP/1.1 Web Server built from scratch"
+PROJECT_LOGO           = webservinho_app/img/webservinho_logo.png
+OUTPUT_DIRECTORY       = docs
+CREATE_SUBDIRS         = NO
+OUTPUT_LANGUAGE        = English
+INPUT                  = srcs includes
+RECURSIVE              = YES
+EXCLUDE_PATTERNS       = */objs/* */logs/*
+FILE_PATTERNS          = *.hpp *.cpp
+FULL_PATH_NAMES        = NO
+
+#---------------------------------------------------------------------------
+# Build related configuration options
+#---------------------------------------------------------------------------
+
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = YES
+EXTRACT_STATIC         = YES
+HIDE_UNDOC_MEMBERS     = NO
+HIDE_UNDOC_CLASSES     = NO
+SORT_MEMBER_DOCS       = YES
+SORT_BRIEF_DOCS        = YES
+SORT_BY_SCOPE_NAME     = YES
+SHOW_USED_FILES        = YES
+
+#---------------------------------------------------------------------------
+# HTML output configuration options
+#---------------------------------------------------------------------------
+
+GENERATE_HTML          = YES
+HTML_OUTPUT            = html
+HTML_FILE_EXTENSION    = .html
+HTML_COLORSTYLE_HUE    = 210
+GENERATE_TREEVIEW      = YES
+SEARCHENGINE           = YES
+DISABLE_INDEX          = NO
+INLINE_SOURCES         = YES
+SOURCE_BROWSER         = YES
+
+#---------------------------------------------------------------------------
+# Dot/Graphviz options
+#---------------------------------------------------------------------------
+
+HAVE_DOT               = YES
+DOT_IMAGE_FORMAT       = svg
+CALL_GRAPH             = YES
+CALLER_GRAPH           = YES
+CLASS_GRAPH            = YES
+COLLABORATION_GRAPH    = YES
+DOT_TRANSPARENT        = YES
+DOT_CLEANUP            = YES
+DOT_MULTI_TARGETS      = YES
