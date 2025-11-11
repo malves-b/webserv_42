@@ -11,6 +11,12 @@
 #include <utils/Signals.hpp>
 #include <utils/string_utils.hpp>
 
+/**
+ * @brief Extracts the script name from a resolved filesystem path.
+ *
+ * Example:
+ * "/var/www/cgi-bin/echo.py" → "echo.py"
+ */
 std::string	CgiHandler::extractScriptName(const std::string& resolvedPath)
 {
 	std::string::size_type lastSlash = resolvedPath.find_last_of('/');
@@ -19,6 +25,12 @@ std::string	CgiHandler::extractScriptName(const std::string& resolvedPath)
 	return (resolvedPath);
 }
 
+/**
+ * @brief Extracts PATH_INFO from the original URI following the script name.
+ *
+ * Example:
+ * URI "/cgi-bin/echo.py/foo/bar" → PATH_INFO="/foo/bar"
+ */
 std::string	CgiHandler::extractPathInfo(const std::string& uri, const std::string& scriptName)
 {
 	std::string::size_type scriptPos = uri.find(scriptName);
@@ -31,6 +43,14 @@ std::string	CgiHandler::extractPathInfo(const std::string& uri, const std::strin
 	return ("");
 }
 
+/**
+ * @brief Builds the CGI environment variables array (envp).
+ *
+ * Converts HTTP request headers and metadata into key-value pairs
+ * according to CGI/1.1 specification. Allocates memory dynamically.
+ *
+ * @return A NULL-terminated array of C-strings suitable for execve().
+ */
 char**	CgiHandler::buildEnvp(HttpRequest& request)
 {
 	std::vector<std::string> env;
@@ -78,7 +98,7 @@ char**	CgiHandler::buildEnvp(HttpRequest& request)
 		env.push_back("SERVER_PORT=80");
 	}
 
-	// add HTTP_ headers
+	// Convert HTTP headers to CGI-style environment variables (HTTP_HEADER_NAME)
 	const std::map<std::string, std::string>& headers = request.getAllHeaders();
 	for (std::map<std::string, std::string>::const_iterator it = headers.begin(); it != headers.end(); ++it)
 	{
@@ -102,6 +122,9 @@ char**	CgiHandler::buildEnvp(HttpRequest& request)
 	return (envp);
 }
 
+/**
+ * @brief Frees memory allocated for the environment variable array.
+ */
 void	CgiHandler::freeEnvp(char** envp)
 {
 	for (int i = 0; envp[i] != NULL; ++i)
@@ -109,96 +132,16 @@ void	CgiHandler::freeEnvp(char** envp)
 	delete[] envp;
 }
 
-void	CgiHandler::setupRedirection(int* stdinPipe, int* stdoutPipe)
-{
-	close(stdinPipe[1]);
-	close(stdoutPipe[0]);
-
-	if (dup2(stdinPipe[0], STDIN_FILENO) == -1)
-	{
-		Logger::instance().log(ERROR, "CgiHandler: dup2(stdin) failed: " + std::string(strerror(errno)));
-		_exit(EXIT_FAILURE);
-	}
-	close(stdinPipe[0]);
-
-	if (dup2(stdoutPipe[1], STDOUT_FILENO) == -1)
-	{
-		Logger::instance().log(ERROR, "CgiHandler: dup2(stdout) failed: " + std::string(strerror(errno)));
-		_exit(EXIT_FAILURE);
-	}
-	close(stdoutPipe[1]);
-}
-
-/* ==========================================================
-**  BLOQUEANTE (modo compatível com o atual Dispatcher)
-** ========================================================== */
-void	CgiHandler::handle(HttpRequest& request, HttpResponse& response)
-{
-	Logger::instance().log(DEBUG, "[Started] CgiHandler::handle");
-
-	int stdinPipe[2];
-	int stdoutPipe[2];
-
-	if (pipe(stdinPipe) == -1 || pipe(stdoutPipe) == -1)
-	{
-		Logger::instance().log(ERROR, "CgiHandler: pipe() failed: " + std::string(strerror(errno)));
-		response.setStatusCode(ResponseStatus::InternalServerError);
-		return ;
-	}
-
-	pid_t pid = fork();
-	if (pid == -1)
-	{
-		Logger::instance().log(ERROR, "CgiHandler: fork() failed: " + std::string(strerror(errno)));
-		response.setStatusCode(ResponseStatus::InternalServerError);
-		return ;
-	}
-
-	// CHILD
-	if (pid == 0)
-	{
-		setupRedirection(stdinPipe, stdoutPipe);
-
-		std::string resolvedPath = request.getResolvedPath();
-		std::string rootDir = resolvedPath.substr(0, resolvedPath.find_last_of('/'));
-		if (chdir(rootDir.c_str()) == -1)
-			_exit(EXIT_FAILURE);
-
-		char** envp = buildEnvp(request);
-		char* argv[] = { &resolvedPath[0], NULL };
-
-		execve(resolvedPath.c_str(), argv, envp);
-		freeEnvp(envp);
-		_exit(EXIT_FAILURE);
-	}
-
-	// PARENT
-	Signals::registerCgiProcess(pid);
-	close(stdinPipe[0]);
-	close(stdoutPipe[1]);
-
-	const std::string& body = request.getBody();
-	if (!body.empty())
-		write(stdinPipe[1], body.c_str(), body.size());
-	close(stdinPipe[1]);
-
-	std::string output;
-	char buffer[4096];
-	ssize_t n;
-	while ((n = read(stdoutPipe[0], buffer, sizeof(buffer))) > 0)
-		output.append(buffer, n);
-
-	close(stdoutPipe[0]);
-	waitpid(pid, NULL, 0);
-	Signals::unregisterCgiProcess(pid);
-
-	ResponseBuilder::handleCgiOutput(response, output);
-	Logger::instance().log(DEBUG, "[Finished] CgiHandler::handle");
-}
-
-/* ==========================================================
-**  ASSÍNCRONO (usado pelo WebServer com poll)
-** ========================================================== */
+/**
+ * @brief Starts an asynchronous CGI execution process.
+ *
+ * Creates non-blocking pipes, forks a child process, and registers it
+ * for monitoring. Used by the event-driven dispatcher for non-blocking CGI.
+ *
+ * @param request The HTTP request associated with the CGI.
+ * @param clientFd The client socket file descriptor for reference.
+ * @return A populated CgiProcess structure with process metadata.
+ */
 CgiProcess	CgiHandler::startAsync(HttpRequest& request, int clientFd)
 {
 	int pipeIn[2];
@@ -215,7 +158,6 @@ CgiProcess	CgiHandler::startAsync(HttpRequest& request, int clientFd)
 
 	if (pid == 0)
 	{
-		// CHILD
 		dup2(pipeIn[0], STDIN_FILENO);
 		dup2(pipeOut[1], STDOUT_FILENO);
 		close(pipeIn[1]);
@@ -234,12 +176,10 @@ CgiProcess	CgiHandler::startAsync(HttpRequest& request, int clientFd)
 		_exit(EXIT_FAILURE);
 	}
 
-	// PARENT
 	Signals::registerCgiProcess(pid);
 	close(pipeIn[0]);
 	close(pipeOut[1]);
 
-	// envia corpo se houver
 	const std::string& body = request.getBody();
 	if (!body.empty())
 		write(pipeIn[1], body.c_str(), body.size());

@@ -11,6 +11,9 @@
 #include <utils/string_utils.hpp>
 #include <utils/Logger.hpp>
 
+/**
+ * @brief Destructor — closes the client socket if still open.
+ */
 ClientConnection::~ClientConnection(void)
 {
 	if (this->_fd != -1)
@@ -20,20 +23,31 @@ ClientConnection::~ClientConnection(void)
 	}
 }
 
+/**
+ * @brief Constructs a new ClientConnection with default state.
+ *
+ * @param config Server configuration associated with this client.
+ */
 ClientConnection::ClientConnection(const ServerConfig& config)
-    : _fd(-1), _serverConfig(config), _sentBytes(0), _keepAlive(true),
-      _hasCgi(false), _cgiFd(-1), _cgiPid(-1), _cgiStart(0)
+	: _fd(-1), _serverConfig(config), _sentBytes(0), _keepAlive(true),
+	  _hasCgi(false), _cgiFd(-1), _cgiPid(-1), _cgiStart(0)
 {
-    Logger::instance().log(DEBUG, "ClientConnection: created with default state");
+	Logger::instance().log(DEBUG, "ClientConnection: created with default state");
 }
 
+/**
+ * @brief Copy constructor — duplicates configuration but not socket state.
+ */
 ClientConnection::ClientConnection(const ClientConnection& src)
-    : _fd(-1), _serverConfig(src._serverConfig), _sentBytes(0), _keepAlive(src._keepAlive),
-      _hasCgi(false), _cgiFd(-1), _cgiPid(-1), _cgiStart(0)
+	: _fd(-1), _serverConfig(src._serverConfig), _sentBytes(0), _keepAlive(src._keepAlive),
+	  _hasCgi(false), _cgiFd(-1), _cgiPid(-1), _cgiStart(0)
 {
-    Logger::instance().log(DEBUG, "ClientConnection: copy-constructed");
+	Logger::instance().log(DEBUG, "ClientConnection: copy-constructed");
 }
 
+/**
+ * @brief Associates a socket FD with this client, closing any previous one.
+ */
 void	ClientConnection::adoptFD(int fd)
 {
 	if (_fd >= 0)
@@ -45,6 +59,14 @@ void	ClientConnection::adoptFD(int fd)
 	Logger::instance().log(DEBUG, "ClientConnection: adopted new FD -> " + toString(_fd));
 }
 
+/**
+ * @brief Receives incoming data from the client socket.
+ *
+ * Reads from the socket into an internal request buffer, and delegates parsing
+ * to RequestParse. Throws on I/O error.
+ *
+ * @return Number of bytes received, or 0 on EOF.
+ */
 ssize_t	ClientConnection::recvData(void)
 {
 	if (_fd == -1)
@@ -56,9 +78,7 @@ ssize_t	ClientConnection::recvData(void)
 	Logger::instance().log(DEBUG, "ClientConnection::recvData bytesRecv = " + toString(bytesRecv));
 
 	if (bytesRecv == -1)
-	{
 		throw std::runtime_error("recvData: read failure (" + std::string(strerror(errno)) + ")");
-	}
 	if (bytesRecv == 0)
 	{
 		Logger::instance().log(INFO, "ClientConnection::recvData EOF reached");
@@ -72,13 +92,21 @@ ssize_t	ClientConnection::recvData(void)
 		" bytes (total buffer size: " + toString(_requestBuffer.size()) + ")");
 
 	RequestParse::handleRawRequest(_requestBuffer, _httpRequest, this->getServerConfig());
-
 	Logger::instance().log(DEBUG, "ClientConnection::recvData processed request data");
 	_requestBuffer.clear();
 
 	return (bytesRecv);
 }
 
+/**
+ * @brief Sends response data to the client.
+ *
+ * @param client Target connection.
+ * @param sent Number of bytes already sent.
+ * @param toSend Maximum number of bytes to send.
+ * @return Number of bytes successfully sent.
+ * @throws std::runtime_error on send failure.
+ */
 ssize_t	ClientConnection::sendData(ClientConnection& client, size_t sent, size_t toSend)
 {
 	if (_fd == -1)
@@ -90,9 +118,7 @@ ssize_t	ClientConnection::sendData(ClientConnection& client, size_t sent, size_t
 	ssize_t bytesSent = ::send(client.getFD(), response_string, toSend, MSG_NOSIGNAL);
 
 	if (bytesSent == -1)
-	{
 		throw std::runtime_error("sendData: send failure (" + std::string(strerror(errno)) + ")");
-	}
 	if (bytesSent == 0)
 	{
 		Logger::instance().log(WARNING, "ClientConnection::sendData returned 0 (client closed connection?)");
@@ -103,6 +129,9 @@ ssize_t	ClientConnection::sendData(ClientConnection& client, size_t sent, size_t
 	return (bytesSent);
 }
 
+/**
+ * @brief Checks if the current HTTP request has been fully received and parsed.
+ */
 bool	ClientConnection::completedRequest(void)
 {
 	if (_httpRequest.getState() == RequestState::Complete)
@@ -111,80 +140,55 @@ bool	ClientConnection::completedRequest(void)
 		Logger::instance().log(DEBUG, "ParseError code -> " + toString(_httpRequest.getParseError()));
 		return (true);
 	}
-
 	Logger::instance().log(DEBUG, "ClientConnection::completedRequest -> FALSE (state = " +
 		toString(_httpRequest.getState()) + ")");
 	return (false);
 }
 
+/**
+ * @brief Clears the pending request buffer.
+ */
 void	ClientConnection::clearBuffer(void)
 {
 	_requestBuffer.clear();
 	Logger::instance().log(DEBUG, "ClientConnection::clearBuffer() called");
 }
 
-int const& ClientConnection::getFD(void) const
-{
-	return (this->_fd);
-}
+int const& ClientConnection::getFD(void) const { return (this->_fd); }
 
-size_t const& ClientConnection::getSentBytes(void) const
-{
-	return (this->_sentBytes);
-}
+size_t const& ClientConnection::getSentBytes(void) const { return (this->_sentBytes); }
 
-std::string const& ClientConnection::getRequestBuffer(void) const
-{
-	return (_requestBuffer);
-}
+std::string const& ClientConnection::getRequestBuffer(void) const { return (_requestBuffer); }
 
-std::string const& ClientConnection::getResponseBuffer(void) const
-{
-	return (_responseBuffer);
-}
+std::string const& ClientConnection::getResponseBuffer(void) const { return (_responseBuffer); }
 
-ServerConfig const& ClientConnection::getServerConfig(void) const
-{
-	return (this->_serverConfig);
-}
+ServerConfig const& ClientConnection::getServerConfig(void) const { return (this->_serverConfig); }
 
-void	ClientConnection::setSentBytes(size_t bytes)
-{
-	this->_sentBytes = bytes;
-}
+void	ClientConnection::setSentBytes(size_t bytes) { this->_sentBytes = bytes; }
 
-void	ClientConnection::setResponseBuffer(const std::string& buffer)
-{
-	this->_responseBuffer = buffer;
-}
+void	ClientConnection::setResponseBuffer(const std::string& buffer) { this->_responseBuffer = buffer; }
 
-bool	ClientConnection::getKeepAlive(void) const
-{
-	return (this->_keepAlive);
-}
+bool	ClientConnection::getKeepAlive(void) const { return (this->_keepAlive); }
 
-void	ClientConnection::setKeepAlive(bool keepAlive)
-{
-	this->_keepAlive = keepAlive;
-}
+void	ClientConnection::setKeepAlive(bool keepAlive) { this->_keepAlive = keepAlive; }
 
-HttpRequest&	ClientConnection::getRequest(void)
-{
-	return (this->_httpRequest);
-}
+HttpRequest&	ClientConnection::getRequest(void) { return (this->_httpRequest); }
 
-HttpResponse&	ClientConnection::getResponse(void)
-{
-	return (this->_httpResponse);
-}
+HttpResponse&	ClientConnection::getResponse(void) { return (this->_httpResponse); }
 
-//CGI ASYNC SUPPORT
+// CGI Async Management
 
+/**
+ * @brief Returns whether a CGI process is currently associated with this client.
+ */
 bool	ClientConnection::hasCgi() const { return (_hasCgi); }
 
+/**
+ * @brief Alias for hasCgi(), kept for backward compatibility.
+ */
 bool	ClientConnection::isCgiActive() const { return (_hasCgi); }
 
-int	ClientConnection::getCgiFd() const { return (_cgiFd);}
+int		ClientConnection::getCgiFd() const { return (_cgiFd); }
 
 pid_t	ClientConnection::getCgiPid() const { return (_cgiPid); }
 
@@ -192,7 +196,7 @@ std::time_t	ClientConnection::getCgiStart() const { return (_cgiStart); }
 
 std::string&	ClientConnection::cgiBuffer() { return (_cgiBuffer); }
 
-void	ClientConnection::setCgiActive(bool v) { _hasCgi = v;}
+void	ClientConnection::setCgiActive(bool v) { _hasCgi = v; }
 
 void	ClientConnection::setCgiFd(int fd) { _cgiFd = fd; }
 
@@ -200,6 +204,9 @@ void	ClientConnection::setCgiPid(pid_t pid) { _cgiPid = pid; }
 
 void	ClientConnection::setCgiStart(std::time_t t) { _cgiStart = t; }
 
+/**
+ * @brief Resets all CGI-related state (after process termination).
+ */
 void	ClientConnection::clearCgi()
 {
 	_hasCgi = false;

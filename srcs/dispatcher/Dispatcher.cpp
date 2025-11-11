@@ -12,7 +12,21 @@
 #include <utils/string_utils.hpp>
 #include <utils/Signals.hpp>
 
-void Dispatcher::dispatch(ClientConnection& client)
+/**
+ * @brief Central dispatch routine that delegates HTTP requests to the appropriate handler.
+ *
+ * The Dispatcher acts as the coordinator between Router and the various handlers.
+ * It interprets the RouteType defined by Router and calls the corresponding component:
+ *  - StaticPageHandler for static content
+ *  - CgiHandler for dynamic scripts
+ *  - UploadHandler for file uploads
+ *  - AutoIndexHandler for directory listings
+ *  - DeleteHandler for DELETE requests
+ *
+ * Additionally, it builds the final HTTP response unless the request triggers
+ * an asynchronous CGI process.
+ */
+void	Dispatcher::dispatch(ClientConnection& client)
 {
 	Logger::instance().log(DEBUG, "[Started] Dispatcher::dispatch");
 
@@ -22,6 +36,7 @@ void Dispatcher::dispatch(ClientConnection& client)
 	const ServerConfig& config = client.getServerConfig();
 	const LocationConfig& location = config.matchLocation(req.getUri());
 
+	// Determine route type based on URI and configuration
 	Router::resolve(req, res, config);
 
 	Logger::instance().log(DEBUG,
@@ -29,6 +44,7 @@ void Dispatcher::dispatch(ClientConnection& client)
 	Logger::instance().log(DEBUG,
 		"Dispatcher: Resolved path -> " + req.getResolvedPath());
 
+	// Dispatch based on the resolved route type
 	switch (req.getRouteType())
 	{
 		case RouteType::Redirect:
@@ -51,7 +67,7 @@ void Dispatcher::dispatch(ClientConnection& client)
 
 			try
 			{
-				// inicia CGI não bloqueante
+				// Starts asynchronous CGI execution
 				CgiProcess proc = CgiHandler::startAsync(req, client.getFD());
 
 				client.setCgiActive(true);
@@ -60,7 +76,7 @@ void Dispatcher::dispatch(ClientConnection& client)
 				client.setCgiStart(proc.startAt);
 				client.cgiBuffer().clear();
 
-				// não construir resposta ainda — o WebServer fará depois
+				// Response will be built later by the WebServer main loop
 				Logger::instance().log(DEBUG, "Dispatcher: async CGI started");
 			}
 			catch (const std::exception& e)
@@ -87,23 +103,26 @@ void Dispatcher::dispatch(ClientConnection& client)
 			break ;
 	}
 
-	// 🟡 IMPORTANTE:
-	// Só monta resposta se NÃO for CGI assíncrono
+	// Build and queue response only for non-CGI routes.
 	if (!client.hasCgi())
 	{
 		ResponseBuilder::build(client, req, res);
 
+		// Manage connection persistence (Keep-Alive)
 		if (req.getMeta().shouldClose())
 			client.setKeepAlive(false);
 		else
 			client.setKeepAlive(true);
 
+		// Serialize full HTTP response into buffer
 		client.setResponseBuffer(ResponseBuilder::responseWriter(res));
 
+		// Optional debug log for HTML responses
 		if (res.getHeader("Content-Type") == "text/html")
 			Logger::instance().log(DEBUG, "Dispatcher: HTML response -> " + client.getResponseBuffer());
 	}
 
+	// Reset request/response for next cycle
 	req.reset();
 	res.reset();
 

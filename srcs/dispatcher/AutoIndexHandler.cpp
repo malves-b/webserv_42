@@ -11,6 +11,14 @@
 #include <utils/Logger.hpp>
 #include <response/ResponseBuilder.hpp>
 
+/**
+ * @brief Generates and serves an HTML directory listing when autoindex is enabled.
+ *
+ * Reads the contents of the resolved directory, formats each entry into
+ * a table row, and injects the result into the HTML template. Adds delete
+ * buttons for files and ensures template placeholders are replaced before
+ * sending the response.
+ */
 void	AutoIndexHandler::handle(HttpRequest& req, HttpResponse& res)
 {
 	Logger::instance().log(DEBUG, "[Started] AutoIndexHandler::handle");
@@ -21,7 +29,6 @@ void	AutoIndexHandler::handle(HttpRequest& req, HttpResponse& res)
 	if (uri.empty() || uri[uri.size() - 1] != '/')
 		uri += '/';
 
-	// Try to open directory
 	DIR* dir = opendir(resolvedPath.c_str());
 	if (dir == NULL)
 	{
@@ -33,11 +40,9 @@ void	AutoIndexHandler::handle(HttpRequest& req, HttpResponse& res)
 	std::string content;
 	struct dirent* entry;
 
-	// Build directory listing rows
 	while ((entry = readdir(dir)) != NULL)
 	{
 		std::string name = entry->d_name;
-
 		if (name == "." || name == "..")
 			continue;
 
@@ -59,11 +64,13 @@ void	AutoIndexHandler::handle(HttpRequest& req, HttpResponse& res)
 
 		std::string sizeStr = isDir ? "-" : formatSize(fileStat.st_size);
 
+		// Builds each table row dynamically
 		content += "<tr>";
 		content += "<td><a href=\"" + uri + name + (isDir ? "/" : "") + "\">" + name + (isDir ? "/" : "") + "</a></td>";
 		content += "<td>" + std::string(dateBuf) + "</td>";
 		content += "<td class=\"size\">" + sizeStr + "</td>";
 
+		// Adds Delete button only for regular files
 		if (!isDir) {
 			std::string encoded = uriEncode(name);
 			content += "<td><button onclick=\"deleteFile('" + uri + encoded + "')\">Delete</button></td>";
@@ -76,9 +83,7 @@ void	AutoIndexHandler::handle(HttpRequest& req, HttpResponse& res)
 
 	closedir(dir);
 
-	// Load external template file
 	std::string html = loadTemplate(getTemplatePath());
-
 	if (html.empty())
 	{
 		Logger::instance().log(ERROR, "AutoIndexHandler: Template not found or empty");
@@ -86,7 +91,7 @@ void	AutoIndexHandler::handle(HttpRequest& req, HttpResponse& res)
 		return ;
 	}
 
-	// Replace placeholders
+	// Replace placeholders in template
 	replacePlaceholder(html, "{PATH}", uri);
 	replacePlaceholder(html, "{PATH}", uri);
 	replacePlaceholder(html, "{CONTENT}", content);
@@ -100,6 +105,9 @@ void	AutoIndexHandler::handle(HttpRequest& req, HttpResponse& res)
 	Logger::instance().log(DEBUG, "[Finished] AutoIndexHandler::handle");
 }
 
+/**
+ * @brief Converts a byte size into a human-readable format (B, KB, MB).
+ */
 std::string	AutoIndexHandler::formatSize(size_t size)
 {
 	std::stringstream ss;
@@ -114,14 +122,23 @@ std::string	AutoIndexHandler::formatSize(size_t size)
 	return (ss.str());
 }
 
+/**
+ * @brief Replaces a single placeholder tag in the HTML template.
+ *
+ * Only replaces the first occurrence found.
+ */
 void	AutoIndexHandler::replacePlaceholder(std::string& html, const std::string& tag, const std::string& value)
 {
 	size_t pos = html.find(tag);
-
 	if (pos != std::string::npos)
 		html.replace(pos, tag.size(), value);
 }
 
+/**
+ * @brief Loads the HTML template for autoindex listing from disk.
+ *
+ * Logs errors and returns an empty string if the file cannot be opened.
+ */
 std::string	AutoIndexHandler::loadTemplate(const std::string& path)
 {
 	Logger::instance().log(DEBUG, "AutoIndexHandler: Loading template file -> " + path);
@@ -141,6 +158,11 @@ std::string	AutoIndexHandler::loadTemplate(const std::string& path)
 	return (buffer.str());
 }
 
+/**
+ * @brief Resolves the template path dynamically based on the executable's location.
+ *
+ * Falls back totemplates/autoindex.html if resolution fails.
+ */
 std::string	AutoIndexHandler::getTemplatePath()
 {
 	char exePath[PATH_MAX];
@@ -155,12 +177,10 @@ std::string	AutoIndexHandler::getTemplatePath()
 	exePath[len] = '\0';
 	std::string path(exePath);
 
-	// Remove executable name (after last '/')
 	size_t lastSlash = path.find_last_of('/');
 	if (lastSlash != std::string::npos)
 		path = path.substr(0, lastSlash);
 
-	// Go up one directory (from /bin to project root)
 	path += "/assets/autoindex.html";
 
 	Logger::instance().log(DEBUG, "AutoIndexHandler: Resolved template path -> " + path);
