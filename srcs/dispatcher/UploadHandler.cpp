@@ -13,6 +13,7 @@
  *
  * Validates Content-Type, checks configuration, and processes multipart/form-data
  * requests to extract uploaded files. Each file part is saved to disk.
+ * @callgraph
  */
 void UploadHandler::handle(HttpRequest& request, HttpResponse& response, std::string uploadPath, const std::string& rootPath)
 {

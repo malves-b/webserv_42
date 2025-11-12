@@ -138,6 +138,7 @@ void	CgiHandler::freeEnvp(char** envp)
  * Creates non-blocking pipes, forks a child process, and registers it
  * for monitoring. Used by the event-driven dispatcher for non-blocking CGI.
  *
+ * @callgraph
  * @param request The HTTP request associated with the CGI.
  * @param clientFd The client socket file descriptor for reference.
  * @return A populated CgiProcess structure with process metadata.

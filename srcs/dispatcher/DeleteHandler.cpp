@@ -16,6 +16,7 @@
  *  - Others → 500 Internal Server Error  
  *
  * On success, responds with 204 No Content.
+ * @callgraph
  */
 void	DeleteHandler::handle(HttpRequest& req, HttpResponse& res)
 {

@@ -60,6 +60,7 @@ WebServer::~WebServer(void)
  *
  * For each `server` block in the config, creates a listening socket,
  * binds it to the specified interface and port, and registers it into poll().
+ * @callgraph
  */
 void	WebServer::startServer(void)
 {
@@ -88,6 +89,7 @@ void	WebServer::startServer(void)
  *
  * Each accepted client is configured, added to `_clients`, and
  * registered in `_pollFDs` for read monitoring.
+ * @callgraph
  */
 void	WebServer::queueClientConnections(ServerSocket& socket)
 {
@@ -121,6 +123,7 @@ void	WebServer::queueClientConnections(ServerSocket& socket)
  * Reads available bytes from the socket, delegates parsing to
  * `RequestParse::handleRawRequest`, and triggers request dispatch
  * once a complete request is received.
+ * @callgraph
  */
 void	WebServer::receiveRequest(size_t i)
 {
@@ -179,6 +182,7 @@ void	WebServer::receiveRequest(size_t i)
 
 /**
  * @brief Sends buffered response data to a connected client.
+ * @callgraph
  */
 void	WebServer::sendResponse(size_t i)
 {
@@ -291,6 +295,7 @@ int	WebServer::getPollTimeout(void)
 /**
  * @brief Sends shutdown notice to clients and closes all sockets.
  *
+ * @callgraph
  * Called on graceful termination (SIGINT). Sends HTTP 503 responses
  * before closing all connections.
  */
@@ -328,6 +333,7 @@ void WebServer::gracefulShutdown(void)
 /**
  * @brief Main event loop — monitors sockets, dispatches requests, and handles responses.
  *
+ * @callgraph
  * Uses `poll()` for multiplexing sockets, manages CGI subprocesses,
  * and performs cleanup on signals or timeouts.
  */

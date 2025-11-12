@@ -25,6 +25,7 @@
  *
  * Additionally, it builds the final HTTP response unless the request triggers
  * an asynchronous CGI process.
+ * @callgraph
  */
 void	Dispatcher::dispatch(ClientConnection& client)
 {

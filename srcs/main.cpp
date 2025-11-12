@@ -13,7 +13,8 @@
  *
  * This function initializes logging, parses the configuration file,
  * sets up signal handlers, and runs the HTTP server main loop.
- *
+ * 
+ * @callgraph
  * @param argc Argument count.
  * @param argv Argument vector.
  * @return Exit status code (0 on success, 1 on failure).

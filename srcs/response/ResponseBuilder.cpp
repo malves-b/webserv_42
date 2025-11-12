@@ -153,6 +153,7 @@ void	ResponseBuilder::handleCgiOutput(HttpResponse& response, const std::string&
  *
  * Adds default headers, manages persistent connections, and generates
  * custom or default error pages when needed.
+ * @callgraph
  */
 void	ResponseBuilder::build(ClientConnection& client, HttpRequest& req, HttpResponse& res)
 {

@@ -64,6 +64,7 @@ const std::string	StaticPageHandler::detectMimeType(const std::string& resolvedP
  * - Unable to open file → 500 Internal Server Error
  *
  * On success, delegates response generation to ResponseBuilder.
+ * @callgraph
  */
 void	StaticPageHandler::handle(HttpRequest& req, HttpResponse& res)
 {

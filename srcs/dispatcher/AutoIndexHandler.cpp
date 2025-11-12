@@ -18,6 +18,7 @@
  * a table row, and injects the result into the HTML template. Adds delete
  * buttons for files and ensures template placeholders are replaced before
  * sending the response.
+ * @callgraph
  */
 void	AutoIndexHandler::handle(HttpRequest& req, HttpResponse& res)
 {
