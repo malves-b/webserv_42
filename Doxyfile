@@ -1,5 +1,5 @@
 # ========================================
-#         Webservinho Doxygen File
+#          Webservinho Doxygen File
 # ========================================
 
 # ---- Project Info ----
@@ -49,8 +49,11 @@ SEARCHENGINE           = YES
 DISABLE_INDEX          = NO
 HTML_DYNAMIC_MENUS     = YES
 HTML_DYNAMIC_SECTIONS  = YES
+
+# (Custom CSS and assets)
 HTML_EXTRA_STYLESHEET  = docs/custom_style.css
 HTML_EXTRA_FILES       = webservinho_app/img/webservinho_logo.png
+
 GENERATE_DOCSET        = NO
 
 # ---- LaTeX / Other Formats ----
@@ -62,12 +65,20 @@ GENERATE_MAN           = NO
 # ---- Graphs ----
 HAVE_DOT               = YES
 DOT_NUM_THREADS        = 2
-CLASS_DIAGRAMS         = YES
 DOT_IMAGE_FORMAT       = svg
 DOT_TRANSPARENT        = YES
 UML_LOOK               = YES
+CLASS_DIAGRAMS         = YES
+
+# (⚙️ Only generate callgraphs where @callgraph/@callergraph are used)
 CALL_GRAPH             = NO
 CALLER_GRAPH           = NO
+CALL_GRAPH_MAX_DEPTH   = 4
+CALLER_GRAPH_MAX_DEPTH = 4
+DOT_CLEANUP            = YES
+DOT_GRAPH_MAX_NODES    = 50
+DOT_FONTNAME           = "Helvetica"
+INTERACTIVE_SVG        = YES
 
 # ---- Warnings ----
 QUIET                  = YES
@@ -79,4 +90,4 @@ TAB_SIZE               = 4
 OPTIMIZE_OUTPUT_FOR_C  = NO
 OPTIMIZE_OUTPUT_FOR_CXX= YES
 MARKDOWN_SUPPORT       = YES
-USE_MDFILE_AS_MAINPAGE = docs/mainpage.md
+
