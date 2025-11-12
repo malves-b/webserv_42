@@ -250,7 +250,8 @@ void WebServer::removeClientConnection(int clientFD, size_t pollFDIndex)
 		_pollFDs.erase(_pollFDs.begin() + pollFDIndex);
 
 	// closes clients socket
-	if (clientFD >= 0) {
+	if (clientFD >= 0)
+	{
 		::shutdown(clientFD, SHUT_RDWR);
 		::close(clientFD);
 	}
@@ -259,7 +260,8 @@ void WebServer::removeClientConnection(int clientFD, size_t pollFDIndex)
 	for (std::map<int,int>::iterator it = _cgiFdToClientFd.begin();
 		 it != _cgiFdToClientFd.end(); )
 	{
-		if (it->second == clientFD) {
+		if (it->second == clientFD)
+		{
 			int cgiFd = it->first;
 			removeCgiPollFd(cgiFd);
 			it = _cgiFdToClientFd.begin();
@@ -299,23 +301,12 @@ int	WebServer::getPollTimeout(void)
  * Called on graceful termination (SIGINT). Sends HTTP 503 responses
  * before closing all connections.
  */
-
-void WebServer::gracefulShutdown(void)
+void	WebServer::gracefulShutdown(void)
 {
 	Logger::instance().log(INFO, "[Graceful shutdown initiated]");
 
 	for (size_t i = 0; i < _serverSocket.size(); ++i)
 		::close(_serverSocket[i]->getFD());
-
-	const std::string body =
-		"<html><body><h1>Server shutting down...</h1></body></html>";
-	std::ostringstream oss;
-	oss << "HTTP/1.1 503 Service Unavailable\r\n"
-		<< "Connection: close\r\n"
-		<< "Content-Type: text/html; charset=utf-8\r\n"
-		<< "Content-Length: " << body.size() << "\r\n\r\n"
-		<< body;
-	const std::string msg = oss.str();
 
 	for (std::map<int, ClientConnection>::iterator it = _clients.begin(); it != _clients.end(); ++it)
 	{
@@ -337,13 +328,14 @@ void WebServer::gracefulShutdown(void)
  * Uses `poll()` for multiplexing sockets, manages CGI subprocesses,
  * and performs cleanup on signals or timeouts.
  */
-void WebServer::runServer(void)
+void	WebServer::runServer(void)
 {
 	Logger::instance().log(INFO, "[Started] WebServer::runServer");
 
 	while (!Signals::shouldStop())
 	{
-		if (_pollFDs.empty()) {
+		if (_pollFDs.empty())
+		{
 			usleep(100 * 1000); // 100ms
 			sweepCgiTimeouts();
 			continue;
@@ -356,7 +348,8 @@ void WebServer::runServer(void)
 		if (Signals::shouldStop())
 			break;
 
-		if (ready == -1) {
+		if (ready == -1)
+		{
 			if (errno == EINTR)
 				continue;
 			Logger::instance().log(ERROR, "poll() failed, continuing main loop");
@@ -401,7 +394,8 @@ void WebServer::runServer(void)
 			}
 
 			// --- LISTEN SOCKET ---
-			if (re & POLLIN) {
+			if (re & POLLIN)
+			{
 				std::map<int, size_t>::iterator itSrv = _socketToServerIndex.find(fd);
 				if (itSrv != _socketToServerIndex.end()) {
 					queueClientConnections(*_serverSocket[itSrv->second]);
@@ -410,14 +404,16 @@ void WebServer::runServer(void)
 			}
 
 			// --- CLIENT SOCKET ---
-			if (re & POLLIN) {
+			if (re & POLLIN)
+			{
 				std::map<int, ClientConnection>::iterator cit = _clients.find(fd);
 				if (cit != _clients.end())
 					receiveRequest(i);
 				continue;
 			}
 
-			if (re & (POLLERR | POLLHUP | POLLRDHUP | POLLNVAL)) {
+			if (re & (POLLERR | POLLHUP | POLLRDHUP | POLLNVAL))
+			{
 				std::map<int, ClientConnection>::iterator itc = _clients.find(fd);
 				if (itc != _clients.end())
 					removeClientConnection(itc->second.getFD(), i);
@@ -558,7 +554,8 @@ void	WebServer::sweepCgiTimeouts()
 		{
 			Logger::instance().log(WARNING, "CGI timeout, killing pid=" + toString(c.getCgiPid()));
 			kill(c.getCgiPid(), SIGKILL);
-			int st; waitpid(c.getCgiPid(), &st, 0);
+			int st;
+			waitpid(c.getCgiPid(), &st, 0);
 			Signals::unregisterCgiProcess(c.getCgiPid());
 
 			c.getResponse().setStatusCode(ResponseStatus::GatewayTimeout);
