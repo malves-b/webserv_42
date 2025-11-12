@@ -78,7 +78,7 @@ ssize_t	ClientConnection::recvData(void)
 	Logger::instance().log(DEBUG, "ClientConnection::recvData bytesRecv = " + toString(bytesRecv));
 
 	if (bytesRecv == -1)
-		throw std::runtime_error("recvData: read failure (" + std::string(strerror(errno)) + ")");
+		throw std::runtime_error("recvData: read failure");
 	if (bytesRecv == 0)
 	{
 		Logger::instance().log(INFO, "ClientConnection::recvData EOF reached");
@@ -118,7 +118,7 @@ ssize_t	ClientConnection::sendData(ClientConnection& client, size_t sent, size_t
 	ssize_t bytesSent = ::send(client.getFD(), response_string, toSend, MSG_NOSIGNAL);
 
 	if (bytesSent == -1)
-		throw std::runtime_error("sendData: send failure (" + std::string(strerror(errno)) + ")");
+		throw std::runtime_error("sendData: send failure");
 	if (bytesSent == 0)
 	{
 		Logger::instance().log(WARNING, "ClientConnection::sendData returned 0 (client closed connection?)");
