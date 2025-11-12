@@ -238,13 +238,30 @@ void	WebServer::sendResponse(size_t i)
 /**
  * @brief Removes a client connection and cleans up associated poll entry.
  */
-void	WebServer::removeClientConnection(int clientFD, size_t pollFDIndex)
+void WebServer::removeClientConnection(int clientFD, size_t pollFDIndex)
 {
-	Logger::instance().log(DEBUG, "WebServer::removeClientConnection fd=" +
-		toString(clientFD) + " idx=" + toString(pollFDIndex));
+	Logger::instance().log(DEBUG, "Removing client fd=" + toString(clientFD));
 
 	if (pollFDIndex < _pollFDs.size())
 		_pollFDs.erase(_pollFDs.begin() + pollFDIndex);
+
+	// closes clients socket
+	if (clientFD >= 0) {
+		::shutdown(clientFD, SHUT_RDWR);
+		::close(clientFD);
+	}
+
+	// Remove any cgi fd
+	for (std::map<int,int>::iterator it = _cgiFdToClientFd.begin();
+		 it != _cgiFdToClientFd.end(); )
+	{
+		if (it->second == clientFD) {
+			int cgiFd = it->first;
+			removeCgiPollFd(cgiFd);
+			it = _cgiFdToClientFd.begin();
+		} else
+			++it;
+	}
 
 	_clients.erase(clientFD);
 }
@@ -266,9 +283,9 @@ void	WebServer::addToPollFD(int fd, short events)
  */
 int	WebServer::getPollTimeout(void)
 {
-	if (Signals::hasActiveCgi())
-		return 100;
-	return 1000;
+	if (!_cgiFdToClientFd.empty())
+		return 100; //100ms
+	return 1000; //1s
 }
 
 /**
@@ -277,40 +294,34 @@ int	WebServer::getPollTimeout(void)
  * Called on graceful termination (SIGINT). Sends HTTP 503 responses
  * before closing all connections.
  */
-void	WebServer::gracefulShutdown(void)
+
+void WebServer::gracefulShutdown(void)
 {
 	Logger::instance().log(INFO, "[Graceful shutdown initiated]");
 
 	for (size_t i = 0; i < _serverSocket.size(); ++i)
-	{
-		int fd = _serverSocket[i]->getFD();
-		if (fd >= 0)
-			::close(fd);
-	}
+		::close(_serverSocket[i]->getFD());
+
+	const std::string body =
+		"<html><body><h1>Server shutting down...</h1></body></html>";
+	std::ostringstream oss;
+	oss << "HTTP/1.1 503 Service Unavailable\r\n"
+		<< "Connection: close\r\n"
+		<< "Content-Type: text/html; charset=utf-8\r\n"
+		<< "Content-Length: " << body.size() << "\r\n\r\n"
+		<< body;
+	const std::string msg = oss.str();
 
 	for (std::map<int, ClientConnection>::iterator it = _clients.begin(); it != _clients.end(); ++it)
 	{
 		int fd = it->first;
-		try
-		{
-			std::string shutdownMsg =
-				"HTTP/1.1 503 Service Unavailable\r\n"
-				"Connection: close\r\n"
-				"Content-Type: text/html; charset=utf-8\r\n"
-				"Content-Length: 50\r\n\r\n"
-				"<html><body><h1>Server shutting down...</h1></body></html>";
-
-			::send(fd, shutdownMsg.c_str(), shutdownMsg.size(), MSG_NOSIGNAL);
-		}
-		catch (...) { }
-
 		::shutdown(fd, SHUT_RDWR);
 		::close(fd);
 	}
 
 	_clients.clear();
 	_pollFDs.clear();
-
+	_cgiFdToClientFd.clear();
 	Logger::instance().log(INFO, "WebServer: graceful shutdown complete");
 }
 
@@ -320,48 +331,48 @@ void	WebServer::gracefulShutdown(void)
  * Uses `poll()` for multiplexing sockets, manages CGI subprocesses,
  * and performs cleanup on signals or timeouts.
  */
-void	WebServer::runServer(void)
+void WebServer::runServer(void)
 {
 	Logger::instance().log(INFO, "[Started] WebServer::runServer");
 
 	while (!Signals::shouldStop())
 	{
+		if (_pollFDs.empty()) {
+			usleep(100 * 1000); // 100ms
+			sweepCgiTimeouts();
+			continue;
+		}
+
 		int timeout = getPollTimeout();
 		int ready = ::poll(&_pollFDs[0], _pollFDs.size(), timeout);
 		sweepCgiTimeouts();
 
 		if (Signals::shouldStop())
-			break ;
+			break;
 
-		if (ready == -1)
-		{
+		if (ready == -1) {
 			if (errno == EINTR)
-				continue ;
-
-			std::string errorMsg(strerror(errno));
-			throw std::runtime_error("WebServer::runServer: poll failed -> " + errorMsg);
+				continue;
+			Logger::instance().log(ERROR, "poll() failed, continuing main loop");
+			continue;
 		}
 
-		for (ssize_t i = static_cast<ssize_t>(_pollFDs.size()) - 1; i >= 0; --i)
+		for (ssize_t i = _pollFDs.size() - 1; i >= 0; --i)
 		{
-			const short re = _pollFDs[i].revents;
 			const int fd = _pollFDs[i].fd;
-			if (re == 0)
+			const short re = _pollFDs[i].revents;
+			if (!re)
 				continue;
 
+			// --- CGI PIPE HANDLING ---
 			if (_cgiFdToClientFd.count(fd))
 			{
 				if (re & (POLLIN | POLLHUP | POLLRDHUP))
-				{
 					handleCgiReadable(i);
-					continue;
-				}
-				if (re & (POLLERR | POLLNVAL))
+				else if (re & (POLLERR | POLLNVAL))
 				{
-					int clientFd = _cgiFdToClientFd[fd];
-					::close(fd);
 					removeCgiPollFd(fd);
-
+					int clientFd = _cgiFdToClientFd[fd];
 					std::map<int, ClientConnection>::iterator itc = _clients.find(clientFd);
 					if (itc != _clients.end())
 					{
@@ -374,56 +385,37 @@ void	WebServer::runServer(void)
 							if (_pollFDs[k].fd == clientFd)
 							{
 								_pollFDs[k].events = POLLOUT;
-								_pollFDs[k].revents = 0;
 								break;
 							}
 						}
 						c.clearCgi();
 					}
+				}
+				continue;
+			}
+
+			// --- LISTEN SOCKET ---
+			if (re & POLLIN) {
+				std::map<int, size_t>::iterator itSrv = _socketToServerIndex.find(fd);
+				if (itSrv != _socketToServerIndex.end()) {
+					queueClientConnections(*_serverSocket[itSrv->second]);
 					continue;
 				}
 			}
 
-			if (re & POLLIN)
-			{
-				std::map<int, size_t>::iterator it = _socketToServerIndex.find(fd);
-				if (it != _socketToServerIndex.end())
-				{
-					queueClientConnections(*_serverSocket[it->second]);
-					continue;
-				}
-			}
-
-			if (re & POLLIN)
-			{
+			// --- CLIENT SOCKET ---
+			if (re & POLLIN) {
 				std::map<int, ClientConnection>::iterator cit = _clients.find(fd);
 				if (cit != _clients.end())
-				{
 					receiveRequest(i);
-					cit = _clients.find(fd);
-					if (cit == _clients.end())
-						continue;
-
-					ClientConnection& client = cit->second;
-					if (client.hasCgi())
-					{
-						_cgiFdToClientFd[client.getCgiFd()] = client.getFD();
-						addCgiPollFd(client.getCgiFd());
-						_pollFDs[i].events = POLLIN;
-						_pollFDs[i].revents = 0;
-					}
-					continue;
-				}
+				continue;
 			}
 
-			if (re & (POLLERR | POLLHUP | POLLRDHUP | POLLNVAL))
-			{
+			if (re & (POLLERR | POLLHUP | POLLRDHUP | POLLNVAL)) {
 				std::map<int, ClientConnection>::iterator itc = _clients.find(fd);
 				if (itc != _clients.end())
-				{
 					removeClientConnection(itc->second.getFD(), i);
-					continue;
-				}
+				continue;
 			}
 
 			if (re & POLLOUT)
@@ -434,6 +426,7 @@ void	WebServer::runServer(void)
 	gracefulShutdown();
 	Logger::instance().log(INFO, "[Finished] WebServer::runServer");
 }
+
 
 /**
  * @brief Adds a CGI pipe descriptor to the poll list for monitoring output.
@@ -464,6 +457,8 @@ void	WebServer::removeCgiPollFd(int cgiFd)
 			break;
 		}
 	}
+	if (cgiFd >= 0)
+		::close(cgiFd);
 	_cgiFdToClientFd.erase(cgiFd);
 }
 
@@ -486,7 +481,6 @@ void	WebServer::handleCgiReadable(int pollIndex)
 	std::map<int, ClientConnection>::iterator it = _clients.find(clientFd);
 	if (it == _clients.end())
 	{
-		::close(cgiFd);
 		removeCgiPollFd(cgiFd);
 		return;
 	}
@@ -503,10 +497,11 @@ void	WebServer::handleCgiReadable(int pollIndex)
 		}
 		if (n == 0)
 		{
-			::close(cgiFd);
-			removeCgiPollFd(cgiFd);
 			int st = 0;
-			waitpid(client.getCgiPid(), &st, WNOHANG);
+			pid_t res = waitpid(client.getCgiPid(), &st, WNOHANG);
+			if (res == 0)
+				break;
+			removeCgiPollFd(cgiFd);
 			Signals::unregisterCgiProcess(client.getCgiPid());
 
 			ResponseBuilder::handleCgiOutput(client.getResponse(), client.cgiBuffer());
@@ -526,13 +521,8 @@ void	WebServer::handleCgiReadable(int pollIndex)
 			client.clearCgi();
 			return;
 		}
-		if (n < 0 && (errno == EAGAIN || errno == EINTR))
+		if (n <= 0)
 			break;
-		if (n < 0)
-		{
-			Logger::instance().log(WARNING, "CGI read error: " + std::string(strerror(errno)));
-			break;
-		}
 	}
 }
 
