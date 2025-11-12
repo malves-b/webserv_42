@@ -5,6 +5,7 @@
 #include <cmath>
 #include <config/ConfigParser.hpp>
 #include <config/ServerConfig.hpp>
+#include <utils/Logger.hpp>
 
 /**
  * @brief Converts a lowercase string token into a RequestMethod enumeration.
