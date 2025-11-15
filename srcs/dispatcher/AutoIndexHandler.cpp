@@ -12,98 +12,164 @@
 #include <response/ResponseBuilder.hpp>
 
 /**
- * @brief Generates and serves an HTML directory listing when autoindex is enabled.
+ * @brief Generates and serves a fully hardcoded HTML directory listing.
  *
- * Reads the contents of the resolved directory, formats each entry into
- * a table row, and injects the result into the HTML template. Adds delete
- * buttons for files and ensures template placeholders are replaced before
- * sending the response.
+ * This version of autoindex embeds the entire HTML template directly in the
+ * binary, removing the need to load external files. It enumerates all directory
+ * entries inside the resolved filesystem path, formats each entry into a table
+ * row, and injects the content into the HTML structure.
+ *
+ * Links are generated using the normalized request path (not the raw URI),
+ * ensuring correct behavior with nested directories, trailing slashes and
+ * interactions with `root` mappings. Each regular file includes a delete button
+ * that triggers a JavaScript DELETE request.
+ *
+ * The resulting HTML page is fully compliant, styled and self-contained.
+ *
+ * @param req Reference to the parsed HttpRequest object.
+ * @param res Reference to the HttpResponse to be populated and returned.
  * @callgraph
  */
 void	AutoIndexHandler::handle(HttpRequest& req, HttpResponse& res)
 {
-	Logger::instance().log(DEBUG, "[Started] AutoIndexHandler::handle");
+    Logger::instance().log(DEBUG, "[Started] AutoIndexHandler::handle");
 
-	std::string resolvedPath = req.getResolvedPath();
-	std::string uri = req.getUri();
+    std::string resolvedPath = req.getResolvedPath();
+    std::string uri = req.getUri();   // isto já é o request path puro
 
 	if (uri.empty() || uri[uri.size() - 1] != '/')
 		uri += '/';
 
-	DIR* dir = opendir(resolvedPath.c_str());
-	if (dir == NULL)
-	{
-		Logger::instance().log(ERROR, "AutoIndexHandler: Failed to open directory: " + resolvedPath);
-		res.setStatusCode(ResponseStatus::InternalServerError);
-		return ;
-	}
 
-	std::string content;
-	struct dirent* entry;
+    DIR* dir = opendir(resolvedPath.c_str());
+    if (dir == NULL)
+    {
+        Logger::instance().log(ERROR, "AutoIndexHandler: Failed to open directory: " + resolvedPath);
+        res.setStatusCode(ResponseStatus::InternalServerError);
+        return;
+    }
 
-	while ((entry = readdir(dir)) != NULL)
-	{
-		std::string name = entry->d_name;
-		if (name == "." || name == "..")
-			continue;
+    std::string content;
+    struct dirent* entry;
 
-		std::string fullPath = resolvedPath + "/" + name;
-		struct stat fileStat;
+    while ((entry = readdir(dir)) != NULL)
+    {
+        std::string name = entry->d_name;
+        if (name == "." || name == "..")
+            continue;
 
-		if (stat(fullPath.c_str(), &fileStat) != 0)
-		{
-			Logger::instance().log(WARNING, "AutoIndexHandler: Unable to stat file: " + fullPath);
-			continue;
-		}
+        std::string fullPath = resolvedPath + "/" + name;
+        struct stat fileStat;
 
-		bool isDir = S_ISDIR(fileStat.st_mode);
+        if (stat(fullPath.c_str(), &fileStat) != 0)
+        {
+            Logger::instance().log(WARNING, "AutoIndexHandler: Unable to stat file: " + fullPath);
+            continue;
+        }
 
-		char dateBuf[100];
-		time_t modTime = fileStat.st_mtime;
-		struct tm* timeInfo = localtime(&modTime);
-		strftime(dateBuf, sizeof(dateBuf), "%d-%b-%Y %H:%M", timeInfo);
+        bool isDir = S_ISDIR(fileStat.st_mode);
 
-		std::string sizeStr = isDir ? "-" : formatSize(fileStat.st_size);
+        char dateBuf[100];
+        time_t modTime = fileStat.st_mtime;
+        struct tm* timeInfo = localtime(&modTime);
+        strftime(dateBuf, sizeof(dateBuf), "%d-%b-%Y %H:%M", timeInfo);
 
-		// Builds each table row dynamically
-		content += "<tr>";
-		content += "<td><a href=\"" + uri + name + (isDir ? "/" : "") + "\">" + name + (isDir ? "/" : "") + "</a></td>";
-		content += "<td>" + std::string(dateBuf) + "</td>";
-		content += "<td class=\"size\">" + sizeStr + "</td>";
+        std::string sizeStr = isDir ? "-" : formatSize(fileStat.st_size);
 
-		// Adds Delete button only for regular files
-		if (!isDir) {
-			std::string encoded = uriEncode(name);
-			content += "<td><button onclick=\"deleteFile('" + uri + encoded + "')\">Delete</button></td>";
-		} else {
-			content += "<td>-</td>";
-		}
+        content += "<tr>";
+        content += "<td><a href=\"" + uri + name + (isDir ? "/" : "") + "\">"
+                   + name + (isDir ? "/" : "") + "</a></td>";
+        content += "<td>" + std::string(dateBuf) + "</td>";
+        content += "<td class=\"size\">" + sizeStr + "</td>";
 
-		content += "</tr>\n";
-	}
+        if (!isDir)
+        {
+            std::string encoded = uriEncode(name);
+            content += "<td><button onclick=\"deleteFile('" + uri + encoded + "')\">Delete</button></td>";
+        }
+        else
+        {
+            content += "<td>-</td>";
+        }
 
-	closedir(dir);
+        content += "</tr>\n";
+    }
 
-	std::string html = loadTemplate(getTemplatePath());
-	if (html.empty())
-	{
-		Logger::instance().log(ERROR, "AutoIndexHandler: Template not found or empty");
-		res.setStatusCode(ResponseStatus::InternalServerError);
-		return ;
-	}
+    closedir(dir);
 
-	// Replace placeholders in template
-	replacePlaceholder(html, "{PATH}", uri);
-	replacePlaceholder(html, "{PATH}", uri);
-	replacePlaceholder(html, "{CONTENT}", content);
-	replacePlaceholder(html, "{SERVER_INFO}", "WebServinho/1.0");
+    std::string html =
+        "<!doctype html>"
+        "<html lang=\"en\">"
+        "<head>"
+        "  <meta charset=\"utf-8\">"
+        "  <title>Index of {PATH}</title>"
+        "  <style>"
+        "    body { font-family: 'Comic Sans MS', Arial, sans-serif; background: #b7d1f8; text-align: center; }"
+        "    .wrapper { background: #fff; padding: 20px; margin: 20px auto; width: 900px;"
+        "               box-shadow: 0 0 0 4px #000, 0 0 0 8px #ff00ff; }"
+        "    table { width: 100%; border-collapse: collapse; margin-top: 20px; background: #fafafa; }"
+        "    th, td { border: 2px dashed #999; padding: 8px; }"
+        "    th { background: #ffff00; font-weight: bold; }"
+        "    tr:nth-child(even) { background: #f0f0f0; }"
+        "    a { text-decoration: none; color: #000; font-weight: bold; }"
+        "    a:hover { color: #ff00ff; }"
+        "    button { background: #ff00ff; color: #fff; border: none; padding: 5px 10px; cursor: pointer; border-radius: 4px; }"
+        "    button:hover { background: #cc00cc; }"
+        "    hr { border: 0; border-top: 2px dashed #999; margin: 20px 0; }"
+        "    address { font-size: 12px; margin-top: 10px; }"
+        "  </style>"
+        "</head>"
+        "<body>"
+        "  <div class=\"wrapper\">"
+        "    <h1>Index of {PATH}</h1>"
+        "    <img src=\"/img/webservinho_logo.png\" alt=\"webservinho logo\" width=\"200\">"
+        "    <table>"
+        "      <thead>"
+        "        <tr><th>Name</th><th>Last Modified</th><th>Size</th><th>Actions</th></tr>"
+        "      </thead>"
+        "      <tbody>"
+        "        {CONTENT}"
+        "      </tbody>"
+        "    </table>"
+        "    <hr>"
+        "    <address>{SERVER_INFO}</address>"
+        "  </div>"
+        ""
+        "  <script>"
+        "    async function deleteFile(path) {"
+        "      if (!confirm('Delete ' + path + ' ?')) return;"
+        "      try {"
+        "        const res = await fetch(path, { method: 'DELETE' });"
+        "        if (res.ok) { alert('Deleted successfully!'); location.reload(); }"
+        "        else alert('Failed (' + res.status + ')');"
+        "      } catch (e) { alert('Error: ' + e); }"
+        "    }"
+        "  </script>"
+        "</body>"
+        "</html>";
 
-	res.appendBody(html);
-	res.addHeader("Content-Type", "text/html");
-	res.addHeader("Content-Length", toString(html.size()));
-	res.setStatusCode(ResponseStatus::OK);
+    replacePlaceholder(html, "{PATH}", uri);
+    replacePlaceholder(html, "{CONTENT}", content);
+    replacePlaceholder(html, "{SERVER_INFO}", "WebServinho/1.0");
 
-	Logger::instance().log(DEBUG, "[Finished] AutoIndexHandler::handle");
+    res.appendBody(html);
+    res.addHeader("Content-Type", "text/html");
+    res.addHeader("Content-Length", toString(html.size()));
+    res.setStatusCode(ResponseStatus::OK);
+
+    Logger::instance().log(DEBUG, "[Finished] AutoIndexHandler::handle");
+}
+
+/**
+ * @brief Replaces a single placeholder tag in the HTML template.
+ *
+ * Only replaces the first occurrence found.
+ */
+void	AutoIndexHandler::replacePlaceholder(std::string& html, const std::string& tag, const std::string& value)
+{
+	size_t pos = html.find(tag);
+	if (pos != std::string::npos)
+		html.replace(pos, tag.size(), value);
 }
 
 /**
@@ -121,69 +187,4 @@ std::string	AutoIndexHandler::formatSize(size_t size)
 		ss << (size / (1024 * 1024)) << " MB";
 
 	return (ss.str());
-}
-
-/**
- * @brief Replaces a single placeholder tag in the HTML template.
- *
- * Only replaces the first occurrence found.
- */
-void	AutoIndexHandler::replacePlaceholder(std::string& html, const std::string& tag, const std::string& value)
-{
-	size_t pos = html.find(tag);
-	if (pos != std::string::npos)
-		html.replace(pos, tag.size(), value);
-}
-
-/**
- * @brief Loads the HTML template for autoindex listing from disk.
- *
- * Logs errors and returns an empty string if the file cannot be opened.
- */
-std::string	AutoIndexHandler::loadTemplate(const std::string& path)
-{
-	Logger::instance().log(DEBUG, "AutoIndexHandler: Loading template file -> " + path);
-
-	std::ifstream file(path.c_str());
-	if (!file.is_open())
-	{
-		Logger::instance().log(ERROR, "AutoIndexHandler: Failed to open template file: " + path);
-		return ("");
-	}
-
-	std::ostringstream buffer;
-	buffer << file.rdbuf();
-	file.close();
-
-	Logger::instance().log(DEBUG, "AutoIndexHandler: Template successfully loaded (" + toString(buffer.str().size()) + " bytes)");
-	return (buffer.str());
-}
-
-/**
- * @brief Resolves the template path dynamically based on the executable's location.
- *
- * Falls back totemplates/autoindex.html if resolution fails.
- */
-std::string	AutoIndexHandler::getTemplatePath()
-{
-	char exePath[PATH_MAX];
-	ssize_t len = readlink("/proc/self/exe", exePath, sizeof(exePath) - 1);
-
-	if (len == -1)
-	{
-		Logger::instance().log(WARNING, "AutoIndexHandler: Failed to resolve /proc/self/exe, using default path");
-		return ("/var/www/templates/autoindex.html");
-	}
-
-	exePath[len] = '\0';
-	std::string path(exePath);
-
-	size_t lastSlash = path.find_last_of('/');
-	if (lastSlash != std::string::npos)
-		path = path.substr(0, lastSlash);
-
-	path += "/assets/autoindex.html";
-
-	Logger::instance().log(DEBUG, "AutoIndexHandler: Resolved template path -> " + path);
-	return (path);
 }
