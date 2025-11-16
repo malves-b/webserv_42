@@ -26,7 +26,7 @@
  */
 void	Router::resolve(HttpRequest& req, HttpResponse& res, const ServerConfig& config)
 {
-	// Step 1: Handle parser-level errors before routing logic
+	//Handle parser-level errors before routing logic
 	if (req.getParseError() != ResponseStatus::OK)
 	{
 		Logger::instance().log(WARNING, "Router: Request parse error detected");
@@ -35,13 +35,13 @@ void	Router::resolve(HttpRequest& req, HttpResponse& res, const ServerConfig& co
 		return ;
 	}
 
-	// Step 2: Match the configuration block ("location") for the requested URI
+	//Match the configuration block ("location") for the requested URI
 	const LocationConfig& loc = config.matchLocation(req.getUri());
 	const std::string index = loc.getHasIndexFiles() ? loc.getIndex() : "";
 	const std::string root  = loc.getHasRoot() ? loc.getRoot() : config.getRoot();
 	const std::string cgiPath = loc.getCgiPath();
 
-	// Step 3: Path traversal security check
+	//Path traversal security check
 	if (hasParentTraversal(req.getUri()))
 	{
 		Logger::instance().log(WARNING, "Router: Path traversal attempt blocked: " + req.getUri());
@@ -50,10 +50,10 @@ void	Router::resolve(HttpRequest& req, HttpResponse& res, const ServerConfig& co
 		return ;
 	}
 
-	// Step 4: Build filesystem path corresponding to request URI
+	//Build filesystem path corresponding to request URI
 	computeResolvedPath(req, loc, config);
 
-	// Step 5: Handle configured HTTP redirects
+	//Handle configured HTTP redirects
 	if (isRedirect(req, res, config))
 	{
 		Logger::instance().log(INFO, "Router: Route type = Redirect");
@@ -61,7 +61,7 @@ void	Router::resolve(HttpRequest& req, HttpResponse& res, const ServerConfig& co
 		return ;
 	}
 
-	// Step 6: Handle CGI execution requests
+	//Handle CGI execution requests
 	if (isCgi(loc, req, res))
 	{
 		Logger::instance().log(INFO, "Router: Route type = CGI");
@@ -72,7 +72,7 @@ void	Router::resolve(HttpRequest& req, HttpResponse& res, const ServerConfig& co
 	if (checkErrorStatus(req, res))
 		return ;
 
-	// Step 7: Handle file uploads (POST/PUT)
+	//Handle file uploads (POST/PUT)
 	if (isUpload(req, res, config))
 	{
 		Logger::instance().log(INFO, "Router: Route type = Upload");
@@ -82,7 +82,7 @@ void	Router::resolve(HttpRequest& req, HttpResponse& res, const ServerConfig& co
 	if (checkErrorStatus(req, res))
 		return ;
 
-	// Step 8: Handle AutoIndex directory listings
+	//Handle AutoIndex directory listings
 	if (index.empty() && isAutoIndex(index, req, config))
 	{
 		Logger::instance().log(INFO, "Router: Route type = AutoIndex");
@@ -90,8 +90,15 @@ void	Router::resolve(HttpRequest& req, HttpResponse& res, const ServerConfig& co
 		return ;
 	}
 
-	// Step 9: Handle static files (GET requests)
-	if (!index.empty() && isStaticFile(index, req, res))
+	//Handle DELETE requests explicitly
+	if (req.getMethod() == RequestMethod::DELETE)
+	{
+		req.setRouteType(RouteType::Delete);
+		return ;
+	}
+
+	// Handle static files (GET requests)
+	if (isStaticFile(index, req, res))
 	{
 		Logger::instance().log(INFO, "Router: Route type = StaticPage");
 
@@ -109,14 +116,7 @@ void	Router::resolve(HttpRequest& req, HttpResponse& res, const ServerConfig& co
 	if (checkErrorStatus(req, res))
 		return ;
 
-	// Step 10: Handle DELETE requests explicitly
-	if (req.getMethod() == RequestMethod::DELETE)
-	{
-		req.setRouteType(RouteType::Delete);
-		return ;
-	}
-
-	// Step 11: Default case: route not found (404)
+	//Default case: route not found (404)
 	Logger::instance().log(WARNING, "Router: No matching route found (404)");
 	res.setStatusCode(ResponseStatus::NotFound);
 	req.setRouteType(RouteType::Error);
