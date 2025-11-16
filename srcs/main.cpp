@@ -1,6 +1,7 @@
 #include <iostream>
 #include <string>
 #include <csignal>
+#include <signal.h>
 #include <init/WebServer.hpp>
 #include <init/ServerSocket.hpp>
 #include <config/ConfigParser.hpp>
@@ -28,6 +29,8 @@ int main(int argc, char** argv)
 {
 	Logger::instance();
 	Logger::instance().log(INFO, "[Started] Webservinho");
+
+	::signal(SIGPIPE, SIG_IGN);
 
 	// Register signal handler for graceful shutdown
 	std::signal(SIGINT, Signals::signalHandle);
