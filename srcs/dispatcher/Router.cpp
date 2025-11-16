@@ -79,6 +79,7 @@ void	Router::resolve(HttpRequest& req, HttpResponse& res, const ServerConfig& co
 		req.setRouteType(RouteType::Upload);
 		return ;
 	}
+
 	if (checkErrorStatus(req, res))
 		return ;
 
@@ -89,6 +90,9 @@ void	Router::resolve(HttpRequest& req, HttpResponse& res, const ServerConfig& co
 		req.setRouteType(RouteType::AutoIndex);
 		return ;
 	}
+
+	if (checkErrorStatus(req, res))
+		return ;
 
 	//Handle DELETE requests explicitly
 	if (req.getMethod() == RequestMethod::DELETE)
@@ -113,6 +117,7 @@ void	Router::resolve(HttpRequest& req, HttpResponse& res, const ServerConfig& co
 		req.setRouteType(RouteType::StaticPage);
 		return ;
 	}
+
 	if (checkErrorStatus(req, res))
 		return ;
 
@@ -125,54 +130,114 @@ void	Router::resolve(HttpRequest& req, HttpResponse& res, const ServerConfig& co
 /**
  * @brief Computes the absolute filesystem path of the requested resource.
  *
- * Combines the URI with the root or CGI path, removes location prefixes,
- * and appends index files when appropriate.
+ * Rules:
+ * 1) If the location defines its own root (or a CGI root), we strip the location
+ *    path from the URI and join the remainder with that root.
+ * 2) If the location inherits the server root (no own root/cgi), we DO NOT strip
+ *    the location path; we join the server root with the full URI.
+ * 3) If the resolved path points to a directory and the location defines an index,
+ *    we append that index file.
+ *
+ * This ensures that a location like "/uploads" without its own root maps to:
+ *     <serverRoot>/uploads
+ * instead of falling back to:
+ *     <serverRoot>
  */
-void	Router::computeResolvedPath(HttpRequest& req,
-								const LocationConfig& location,
-								const ServerConfig& config)
+void Router::computeResolvedPath(HttpRequest& req,
+	const LocationConfig& location,
+	const ServerConfig& config)
 {
-	std::string uri = req.getUri();
+	// Original request URI (e.g., "/uploads/file.txt")
+	const std::string uri = req.getUri();
+
+	// Determine which root will be used: CGI root, location root, or server root.
+	bool hasCgiRoot = false;
+	bool hasLocRoot = false;
 	std::string root;
 
-	// Determine which root path to use (CGI, location, or server)
 	if (!location.getCgiPath().empty())
-		root = location.getCgiPath();
-	else if (location.getHasRoot())
-		root = location.getRoot();
-	else
-		root = config.getRoot();
-
-	// Remove trailing slash from location path
-	std::string locPath = location.getPath();
-	if (locPath.size() > 1 && locPath[locPath.size() - 1] == '/')
-		locPath.erase(locPath.size() - 1);
-
-	// Compute relative path
-	std::string relativePath = uri;
-	if (uri.find(locPath) == 0)
-		relativePath = uri.substr(locPath.length());
-	if (!relativePath.empty() && relativePath[0] == '/')
-		relativePath.erase(0, 1);
-
-	std::string resolved = joinPaths(root, relativePath);
-
-	// If path is a directory and has index files, append them
-	struct stat s;
-	if (stat(resolved.c_str(), &s) == 0 && S_ISDIR(s.st_mode))
 	{
-		if (location.getHasIndexFiles())
-			resolved = joinPaths(resolved, location.getIndex());
+		hasCgiRoot = true;
+		root = location.getCgiPath();
+	}
+	else if (location.getHasRoot())
+	{
+		hasLocRoot = true;
+		root = location.getRoot();
+	}
+	else
+	{
+		root = config.getRoot();
 	}
 
+	// Normalize location path (remove trailing slash but keep "/" itself).
+	std::string locPath = location.getPath();
+	if (locPath.size() > 1 && locPath[locPath.size() - 1] == '/')
+	{
+		locPath.erase(locPath.size() - 1);
+	}
+
+	// Compute the "tail" portion to append to root.
+	// - If location has its own root/CGI root: strip the location prefix from the URI.
+	// - Otherwise: keep the full URI.
+	std::string tail;
+	if (hasCgiRoot || hasLocRoot)
+	{
+		if (startsWith(uri, locPath))
+		{
+			// Example: uri="/cgi-bin/hello.py", locPath="/cgi-bin" -> tail="/hello.py"
+			tail = uri.substr(locPath.size());
+		}
+		else
+		{
+			// Defensive fallback: config mismatch or a prior rewrite changed the URI.
+			tail = uri;
+		}
+	}
+	else
+	{
+		// Inherit server root: keep the entire URI (e.g., "/uploads/file.txt")
+		tail = uri;
+	}
+
+	// Remove leading slash from tail so joinPaths(root, tail) works consistently.
+	if (!tail.empty() && tail[0] == '/')
+	{
+		tail.erase(0, 1);
+	}
+
+	// Join root and tail. Expected behavior of joinPaths:
+	// - If 'tail' is empty, it should return 'root' unchanged.
+	// - It should avoid duplicating slashes.
+	std::string resolved = joinPaths(root, tail);
+
+	// If the resolved path is a directory and the location defines an index,
+	// append that index file.
+	struct stat st;
+	if (stat(resolved.c_str(), &st) == 0)
+	{
+		if (S_ISDIR(st.st_mode))
+		{
+			if (location.getHasIndexFiles())
+			{
+				resolved = joinPaths(resolved, location.getIndex());
+			}
+		}
+	}
+
+	// Store the final path in the request object.
 	req.setResolvedPath(resolved);
 
-	Logger::instance().log(DEBUG,
+	// Diagnostic log (useful to confirm mapping behavior).
+	Logger::instance().log(
+		DEBUG,
 		"Router::computeResolvedPath: uri=" + uri +
 		" locPath=" + locPath +
 		" root=" + root +
-		" -> resolved=" + resolved);
+		" -> resolved=" + resolved
+	);
 }
+
 
 /**
  * @brief Checks if the response already contains an error status.

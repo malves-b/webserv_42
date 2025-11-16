@@ -10,6 +10,8 @@
 #include <utils/string_utils.hpp>
 #include <utils/Logger.hpp>
 #include <response/ResponseBuilder.hpp>
+#include <response/ResponseStatus.hpp>
+#include <request/RequestMethod.hpp>
 
 /**
  * @brief Generates and serves a fully hardcoded HTML directory listing.
@@ -33,6 +35,18 @@
 void	AutoIndexHandler::handle(HttpRequest& req, HttpResponse& res)
 {
 	Logger::instance().log(DEBUG, "[Started] AutoIndexHandler::handle");
+
+	if (req.getMethod() != RequestMethod::GET && req.getMethod() != RequestMethod::HEAD)
+	{
+		std::string html = "<!doctype html><html><body><h1>405 Method Not Allowed</h1></body></html>";
+		res.setStatusCode(ResponseStatus::MethodNotAllowed);
+		res.addHeader("Allow", "GET, HEAD");
+		res.addHeader("Content-Type", "text/html");
+		res.addHeader("Content-Length", toString(html.size()));
+		res.appendBody(html);
+		Logger::instance().log(DEBUG, "[Finished] AutoIndexHandler::handle");
+		return ;
+	}
 
 	std::string resolvedPath = req.getResolvedPath();
 	std::string uri = req.getUri();
